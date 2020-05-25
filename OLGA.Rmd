@@ -1,0 +1,429 @@
+---
+title: "OLGA Analysis of CDR3 Sequences"
+author: "AlexGW"
+date: "19 December 2019"
+output: html_document
+---
+
+OLGA calculates the likelihood of generating a given CDR3 amino acid sequence with or without V/J restriction.
+
+```{bash, test OLGA publics}
+
+cd /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data
+
+olga-compute_pgen --humanTRA CAATRRGADGLTF
+olga-compute_pgen --humanTRA CAASSRIYNQGGKLIF
+
+
+```
+
+```{r setup_data_packages, eval=TRUE, echo=FALSE, error=TRUE, message=FALSE, cache=FALSE}
+
+library(knitr)
+library(tidyverse)
+library(stringr)
+library(xlsx)
+library(tcR)
+library(ggseqlogo)
+library(stringr)
+library(Biostrings)
+library(alakazam)
+library(muscle)
+library(phylogram)
+library(ape)
+library(seqinr)
+library(magrittr)
+library(ggpubr)
+
+opts_knit$set(root.dir = "~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+setwd("~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+
+#opts_knit$set(root.dir = "C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+#setwd("C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+
+```
+
+```{R Read in TCR Sequences, include=TRUE, echo=FALSE, eval = TRUE}
+
+#opts_knit$set(root.dir = "C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+#setwd("C:/Users/Green/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
+
+opts_knit$set(root.dir = "~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+setwd("~/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
+
+TCR_file_names <- dir("../input/", recursive = TRUE)
+listof_TCR_samples <- list()
+for (i in 1:length(TCR_file_names)){
+  
+  listof_TCR_samples[[i]] <- read.csv(file = paste("../input/", 
+                                                   TCR_file_names[i], sep = ""), 
+                                      header = TRUE, 
+                                      stringsAsFactors = FALSE)
+}
+
+TCR_file_names <- sub(pattern = "_\\d{4}\\.csv", 
+                      replacement = "", TCR_file_names)
+names(listof_TCR_samples) <- TCR_file_names
+TCR_file_names <- lapply(TCR_file_names, FUN = toupper )
+
+flu_seqs <- list()
+for (i in 1:length(listof_TCR_samples)){
+  
+  flu_seqs[[i]] <- list("Read.count" =listof_TCR_samples[[i]]$Clone.count,
+                        "Read.proportion" = list(),
+                        "V.gene"= listof_TCR_samples[[i]]$All.V.hits,
+                        "J.gene"= listof_TCR_samples[[i]]$All.J.hits,
+                        "CDR3.amino.acid.sequence"= listof_TCR_samples[[i]]$AA..Seq..CDR3)
+  
+  flu_seqs[[i]]$Read.proportion <- (flu_seqs[[i]]$Read.count)/sum(flu_seqs[[i]]$Read.count)
+}  
+remove(listof_TCR_samples)
+names(flu_seqs) <- TCR_file_names
+
+for (i in 1:length(flu_seqs)){
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "\\*00.*", 
+                               replacement = "", flu_seqs[[i]]$V.gene) 
+  # this is quite important, it removes the least probable V.gene alignment
+  # \\ means it escapes *, and looks for that exact character in the string
+  # then is finds the 00. and now uses . followed by * as the ANY CHARACTER (.), any number of times behind this (*)
+  
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV14DV4", 
+                               replacement = "TRAV14/DV4", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV23DV6", 
+                               replacement = "TRAV23/DV6", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV29DV5", 
+                               replacement = "TRAV29/DV5", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV36DV7", 
+                               replacement = "TRAV36/DV7", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV38-2DV8", 
+                               replacement = "TRAV38-2/DV8", flu_seqs[[i]]$V.gene)
+  
+  flu_seqs[[i]]$J.gene <- gsub(pattern = "\\*00.*", replacement = "", flu_seqs[[i]]$J.gene)
+}
+
+# Build the dataframes of Alpha sequences and Beta sequences for analysis.
+
+Alpha_df <- NULL
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>% 
+  unlist(use.names = F) %>% tibble("CDR3" =.) -> Alpha_df 
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "V.gene") %>% unlist(use.names = F) -> Alpha_df$V.gene
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "J.gene") %>% unlist(use.names = F) -> Alpha_df$J.gene
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>% 
+  unlist(use.names = T, recursive = F) %>% names() -> Alpha_df$DONOR
+
+Alpha_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Alpha_df
+Alpha_df$EPITOPE <- gsub('[0-9]+', '', Alpha_df$EPITOPE)
+Alpha_df$EPITOPE <- gsub('_ALPHA', '', Alpha_df$EPITOPE)
+
+###
+
+Beta_df <- NULL
+flu_seqs[grep("BETA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>% 
+  unlist(use.names = F) %>% tibble("CDR3" =.) -> Beta_df 
+flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "V.gene") %>% unlist(use.names = F) -> Beta_df$V.gene
+flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "J.gene") %>% unlist(use.names = F) -> Beta_df$J.gene
+flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>% 
+  unlist(use.names = T, recursive = F) %>% names() -> Beta_df$DONOR
+
+Beta_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Beta_df
+Beta_df$EPITOPE <- gsub('[0-9]+', '', Beta_df$EPITOPE)
+Beta_df$EPITOPE <- gsub('_BETA', '', Beta_df$EPITOPE)
+
+#
+#
+# Based on the mouse model, group the dominant and sub dominant epitopes into two classes
+Alpha_df <- Alpha_df %>% add_column(`Dominance`="Sub-Dominant")
+Beta_df <- Beta_df %>% add_column(`Dominance`="Sub-Dominant")
+
+immuno_doms <- c("GLI", "DPF", "PKY")
+
+fxn_dominance <- function(df){
+  df %>% mutate(Dominance=case_when(EPITOPE %in% immuno_doms ~ "Immuno-Dominant",
+                                    !(EPITOPE %in% immuno_doms) ~ "Sub-Dominant")) -> df_mod
+  assign(x= deparse(substitute(df)), value = df_mod, envir = .GlobalEnv)
+}
+
+fxn_dominance(Alpha_df)
+fxn_dominance(Beta_df)
+
+
+#
+#
+# Highlight the public TCR sequences
+public_alpha <- c('CAATRRGADGLTF', 'CAASSRIYNQGGKLIF', 'CAENNKGTSYGKLTF', 'CAENIRNARLMF',
+                  'CALREANTGNQFYF', 'CALRTGNQFYF', 'CAFMRYNAGNMLTF', 'CAVEVLNSGNTPLVF',
+                  'CAYLAGTASKLTF', 'CAYITGTASKLTF', 'CAYLTGTASKLTF', 'CAYRSTGNQFYF',
+                  'CAVEGDNAGNKLTF', 'CAVEEGSSASKIIF', 'CAASFSDGQKLLF', 'CALSNDYKLSF',
+                  'CAMSATDSWGKLQF', 'CAMSPTDSWGKLQF', 'CLVGDMNSGYSTLTF', 'CAVSEDTDKLIF')
+
+public_beta <- c('CASSSPSGGAPYNEQFF', 'CSARDLQGAYNSPLHF', 'CSARDLQGSYNSPLHF', 
+                 'CSARGLQGDYNSPLHF', 'CSAQDRDSGNTIYF', 'CASSLEGSPSQNTEAFF', 
+                 'CASSPGGSSYEQYF', 'CSARRGGDTQYF', 'CASSVVGAGADTQYF')
+
+Alpha_df <- Alpha_df %>% add_column(`Public`=NA)
+Beta_df <- Beta_df %>% add_column(`Public`=NA)
+
+fxn_public <- function(df, pub_seqs){
+  df %>% mutate(Public=case_when(CDR3 %in% pub_seqs ~ "Public",
+                                 !(CDR3 %in% pub_seqs) ~ "Private")) -> df_mod
+  assign(x= deparse(substitute(df)), value = df_mod, envir = .GlobalEnv)
+}
+
+fxn_public(Alpha_df, public_alpha)
+fxn_public(Beta_df, public_beta)
+
+
+# Add the enriched genes status
+# You should have used pmap here
+Enriched_V <- c("SGP", "TRAV13-2",
+                "SGP", "TRAV23/DV6",
+                "GLI", "TRAV2",
+                "GLI", "TRAV16",
+                "GLI", "TRAV38-1",
+                "QAR", "TRAV38-2/DV8",
+                "DPF", "TRAV29/DV5",
+                "GMF", "TRAV2",
+                "PKY", "TRAV13-1",
+                "SGP", "TRBV12-3",
+                "GLI", "TRBV7-2",
+                "QAR", "TRBV20-1",
+                "DPF", "TRBV7-2",
+                "GMF", "TRBV20-1",
+                "PKY", "TRBV28",
+                "PKY", "TRBV6-5") %>%
+  matrix(nrow = 16, ncol = 2, byrow = T) %>% set_colnames(c("x", "y")) %>%
+  as_tibble() %>%
+  add_column(df=c(rep("Alpha_df", 9), rep("Beta_df", 7)))
+
+Alpha_df <- Alpha_df %>% add_column("EnrichedV"=FALSE)
+Beta_df <- Beta_df %>% add_column("EnrichedV"=FALSE)
+
+for (j in 1:nrow(Enriched_V)) {
+  for (i in 1:nrow(Alpha_df)){
+    if ( 
+      ((Alpha_df[i,]$V.gene==Enriched_V[j,"y"])&&(Alpha_df[i,]$EPITOPE==Enriched_V[j,"x"]))==TRUE){
+      Alpha_df[i, "EnrichedV"]<-TRUE}
+  }
+}
+
+for (j in 1:nrow(Enriched_V)) {
+  for (i in 1:nrow(Beta_df)){
+    if ( 
+      ((Beta_df[i,]$V.gene==Enriched_V[j,"y"])&&(Beta_df[i,]$EPITOPE==Enriched_V[j,"x"]))==TRUE){
+      Beta_df[i, "EnrichedV"]<-TRUE}
+  }
+}
+
+setwd("~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin") # Return to this project directory.
+#setwd("C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+
+# write a function that allows you to loop over your TCR-CDR3 sequences by epitope, and make fasta files for analysis by MEME/GLAM
+make_fasta <- function(df, epi){ df %>%
+    filter(EPITOPE == epi) %>%
+    filter(V.gene !="TRAV31") %>% # OLGA does not like TRAV31 ?!
+    select(c("CDR3", "V.gene", "J.gene")) %>%
+    as.data.frame() %>%{
+      write.table( # write fasta to output
+        (.),
+        quote = FALSE, 
+        sep = "\t",
+        col.names = F,
+        row.names = F,
+        file = paste0("../olga/fasta/", epi, ".tsv")
+      )}
+}
+
+# Loop over and make fasta files for each epitope.
+for(i in (table(Alpha_df$EPITOPE)%>% names())){
+  make_fasta(Alpha_df, epi = i)
+}
+
+for(i in (table(Beta_df$EPITOPE)%>% names())){
+  make_fasta(Beta_df, epi = i)
+}
+
+# To run discriminative mode you need to use a background file.
+# I will make one for the alpha chains and one for the beta chains.
+
+make_fasta_all <- function(df, name){  df %>%
+    select(c("CDR3", "V.gene", "J.gene")) %>%
+    filter(V.gene !="TRAV31") %>% # OLGA does not like TRAV31 ?!
+    as.data.frame() %>%{
+      write.table( # write fasta to output
+        (.),
+        quote = FALSE, 
+        sep = "\t",
+        col.names = F,
+        row.names = F,
+        file = paste0("../olga/fasta/", name, "_all.tsv")
+      )}
+}
+
+make_fasta_all(df = Alpha_df, "Alpha")
+make_fasta_all(df = Beta_df, "Beta")
+
+```
+
+
+```{bash, OLGA 1, eval = FALSE}
+
+cd /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/
+
+rm *NOMASK.out
+
+# Start by doing this for just the CDR3, worry about VJ usage later...
+parallel -j 6 'olga-compute_pgen -i {} --humanTRA -o {/.}_NOMASK.out' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/fasta/Alpha_all.tsv
+
+parallel -j 6 'olga-compute_pgen -i {} --humanTRB -o {/.}_NOMASK.out' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/fasta/Beta_all.tsv
+
+
+```
+
+
+```{bash, test OLGA, eval = FALSE}
+
+cd /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/
+
+rm *VJ.out # get rid of all previous files
+
+parallel -j 6 'olga-compute_pgen -i {} --humanTRA --v_in 1 --j_in 2 -o {/.}_VJ.out' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/fasta/Alpha_all.tsv
+
+parallel -j 6 'olga-compute_pgen -i {} --humanTRB --v_in 1 --j_in 2 -o {/.}_VJ.out' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/fasta/Beta_all.tsv
+
+```
+
+Now read in these values and tabulate the averages.
+
+```{r, fig.height=12, fig.width=6, warning=TRUE}
+
+library(magrittr)
+library(dplyr)
+
+alpha_all_no_mask <- read.table(file = "../olga/Alpha_all_NOMASK.out", header = F, stringsAsFactors = F) %>%  set_colnames(c("CDR3", "pGen")) %>%  
+  bind_cols(semi_join(x=Alpha_df, y=., by= "CDR3", keep=T)[2:8]) %>%  as_tibble()
+
+beta_all_no_mask <- read.table(file = "../olga/Beta_all_NOMASK.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>% 
+  bind_cols(semi_join(x=Beta_df, y=., by= "CDR3", keep=T)[2:8]) %>%  as_tibble()
+
+alpha_all_vj <- read.table(file = "../olga/Alpha_all_VJ.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>% 
+  bind_cols(semi_join(x=Alpha_df, y=., by= "CDR3", keep=T)[2:8]) %>%  as_tibble()
+
+beta_all_vj <- read.table(file = "../olga/Beta_all_VJ.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>% 
+  bind_cols(semi_join(x=Beta_df, y=., by= "CDR3", keep=T)[2:8]) %>%  as_tibble()
+
+
+list_df <- list(alpha_all_no_mask, beta_all_no_mask, alpha_all_vj, beta_all_vj)
+names(list_df) <- c('alpha_all_no_mask', 'beta_all_no_mask', 'alpha_all_vj', 'beta_all_vj')
+purrr::map(list_df, function(x){
+  table(x %>% {(.$pGen==0)})
+}) # get the number of pGen values equal to zero
+
+epi_list <- list("SGP", "GLI", "QAR", "DPF", "GMF", "PKY")
+names(epi_list) <- c("SGP", "GLI", "QAR", "DPF", "GMF", "PKY")
+
+
+purrr::map(epi_list, function(i){ 
+  purrr::map(list_df, function(x){
+    table(x %>% filter(EPITOPE==i) %>% {(.$pGen==0)})
+  }) # get the number of pGen values equal to zero
+})
+
+
+## ggplot!
+map_dbl(1:16, function(x){
+  paste0("1e-", print(x))%>%as.double()
+}) %>% as.vector() -> nums
+
+plain <- function(x,...) {
+  format(x, ..., scientific = T, digits = 2)
+}
+
+pGen_plot <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE, 
+                                                             levels = c("SGP","GLI","QAR","DPF","GMF","PKY")
+)) %>%  # filter(EnrichedV==TRUE) %>%
+    group_by(EPITOPE) %>% ggplot(mapping = aes(x = pGen, fill = EPITOPE)) +
+    #geom_boxplot() +
+    #geom_point() +
+    facet_wrap(~EPITOPE, ncol = 1 #scales = "free_y"
+    ) +
+    scale_x_continuous(trans='log', #breaks = nums, 
+                       limits = c(1e-16, 1e-04),
+                       labels = plain) + 
+    #scale_x_continuous(trans='log2') + 
+    #ggtitle(name) + 
+    theme_pubr() +
+    theme(legend.position = "none") +
+    #geom_density(alpha=0.1, stat = "density") +
+    geom_histogram(stat = "bin", binwidth = 0.5, color="black", alpha=0.7) +
+    xlab("log pGen") + ylab("TCR Count") +
+    #coord_flip()
+    ggsave(filename = paste0("../output/", deparse( substitute(i)), ".png"), dpi=300, height=8, width = 5, device = "png")
+}
+
+pGen_plot(alpha_all_no_mask, name = "CDR3 Alpha Recombination Probabilities")
+pGen_plot(beta_all_no_mask, name = "CDR3 Beta Recombination Probabilities")
+
+```
+
+
+```{r public fxns}
+
+pGen_EnV <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE, 
+                                                            levels = c("SGP","GLI","QAR","DPF","GMF","PKY")
+)) %>%  # filter(EnrichedV==TRUE) %>%
+    group_by(EPITOPE) %>% ggplot(mapping = aes(x = pGen, fill = Dominance)) +
+    scale_x_continuous(trans='log2', #breaks = nums, 
+                       limits = c(1e-16, 1e-04),
+                       labels = plain) +
+    theme_pubr() +
+    theme(text = element_text(size=14), 
+          plot.title = element_text(size=14),  
+          axis.text.y = element_text(size=14),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(), 
+          axis.text.x = element_text(angle = -45, size=14,
+                                     vjust = 0.5, hjust = 0.5)) +
+    ggtitle(name) + 
+    geom_density(alpha=0.3) +
+    ggsave(filename = paste0("../output/", deparse( substitute(i)), "_dom.png"), dpi=300, height=4, width = 5, device = "png")
+}
+
+#pGen_EnV(alpha_all_no_mask, name = "CDR3 Alpha Dominance Comparison")
+#pGen_EnV(beta_all_no_mask, name = "CDR3 Beta Dominance Comparison")
+
+pGen_public <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE, 
+                                                               levels = c("SGP","GLI","QAR","DPF","GMF","PKY")
+)) %>%  # filter(EnrichedV==TRUE) %>%
+    group_by(EPITOPE) %>% ggplot() +
+    #geom_bar(stat = "count", alpha=0.3, color="black") +
+    geom_boxplot(mapping = aes(x = EPITOPE, y = pGen), fill = "black", alpha = 0.1)  +
+    geom_point(mapping = aes(x = EPITOPE, y = pGen, color = Public), 
+               position = position_dodge(width = 0.25), size =2.5 ) +
+    scale_color_manual(values = c("royalblue", "orangered1")) +
+    #ggtitle( name ) +
+    theme_pubr() +
+    theme(text = element_text(size=14), 
+          plot.title = element_text(size=14),  
+          axis.text.y = element_text(size=14),
+          axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = -45, size=14,
+                                     vjust = 0.5, hjust = 0.5),
+          legend.position = "none",
+          legend.title = element_blank()) +
+    scale_y_continuous(trans='log', #breaks = nums, 
+                       limits = c(1e-16, 1e-04),
+                       labels = plain) + 
+    ylab("log pGen") +
+    #coord_flip() +
+    ggsave(filename = paste0("../output/", deparse( substitute(i)), "_public.png"), dpi=300, height=5, width = 5, device = "png")
+}
+
+```
+
+```{r public charts, fig.height=5, fig.width=5}
+
+pGen_public(alpha_all_no_mask, "CDR3 Alpha Recombination Probabilities")
+pGen_public(beta_all_no_mask, "CDR3 Beta Recombination Probabilities")
+#pGen_public(beta_all_no_mask, "olga_legend")
+
+```

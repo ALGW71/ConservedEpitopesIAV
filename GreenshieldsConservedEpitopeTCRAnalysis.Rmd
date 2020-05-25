@@ -1,0 +1,1169 @@
+---
+title: "Conserved Epitopes: TCR analysis in R of Gene Usage and CDR3 Motifs"
+author: "AlexGW"
+date: "19 December 2019"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+This is the basis for a lean script that processes my TCR seq data - hope to make it easier.
+
+Below involves reading in the files to a list which can be subsetted and then naming them correctly.
+
+```{R Read in files, include=TRUE, echo=TRUE, eval = TRUE, results='asis'}
+
+library(tidyverse)
+library(tcR)
+library(ggpubr)
+
+setwd("C:/Users/Green/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
+#setwd("~/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
+
+TCR_file_names <- dir("../input/", recursive = TRUE)
+
+listof_TCR_samples <- list()
+for (i in 1:length(TCR_file_names)){
+  
+  listof_TCR_samples[[i]] <- read.csv(file = paste("../input/", 
+                                                   TCR_file_names[i], sep = ""), 
+                                      header = TRUE, 
+                                      stringsAsFactors = FALSE)
+}
+
+TCR_file_names <- sub(pattern = "_\\d{4}\\.csv", 
+                      replacement = "", TCR_file_names)
+
+names(listof_TCR_samples) <- TCR_file_names
+
+TCR_file_names <- map(TCR_file_names, .f = toupper ) # make all capital letters
+
+flu_seqs <- list()
+for (i in 1:length(listof_TCR_samples)){
+  
+  flu_seqs[[i]] <- list("Read.count" =listof_TCR_samples[[i]]$Clone.count,
+                        "Read.proportion" = list(),
+                        "V.gene"= listof_TCR_samples[[i]]$All.V.hits,
+                        "J.gene"= listof_TCR_samples[[i]]$All.J.hits,
+                        "CDR3.amino.acid.sequence"= listof_TCR_samples[[i]]$AA..Seq..CDR3)
+  
+  flu_seqs[[i]]$Read.proportion <- (flu_seqs[[i]]$Read.count)/sum(flu_seqs[[i]]$Read.count)
+}  
+
+remove(listof_TCR_samples)
+names(flu_seqs) <- TCR_file_names
+
+for (i in 1:length(flu_seqs)){
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "\\*00.*", 
+                               replacement = "", flu_seqs[[i]]$V.gene) 
+  # this is quite important, it removes the least probable V.gene alignment
+  # \\ means it escapes *, and looks for that exact character in the string
+  # then it finds the 00. and uses . followed by * as the ANY CHARACTER (.) 
+  # any number of times behind this (*)
+  
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV14DV4", 
+                               replacement = "TRAV14/DV4", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV23DV6", 
+                               replacement = "TRAV23/DV6", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV29DV5", 
+                               replacement = "TRAV29/DV5", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV36DV7", 
+                               replacement = "TRAV36/DV7", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV38-2DV8", 
+                               replacement = "TRAV38-2/DV8", flu_seqs[[i]]$V.gene)
+  # above: this just corrects the DV genes to have a slahs so they can be used in later package functions.
+  
+  flu_seqs[[i]]$J.gene <- gsub(pattern = "\\*00.*", replacement = "", flu_seqs[[i]]$J.gene)
+}
+
+```
+
+Now the TCR data is in flu_seqs and ready to be accessed.
+Next the order of TRAV and TRBV genes needs to be set. 
+We have used the list available.
+
+```{R Order of V-genes, include=TRUE, echo=TRUE, eval = TRUE, results =  'asis'}
+
+TRAV <- as.character( tcR::HUMAN_TRAV )
+TRAJ <- as.character( tcR::HUMAN_TRAJ )
+
+TRBV <- as.character( tcR::HUMAN_TRBV )
+TRBJ <- as.character( tcR::HUMAN_TRBJ )
+
+TRBV_order <- c("TRBV2", "TRBV3-1", "TRBV4-1",  "TRBV4-2",  "TRBV4-3",  
+                "TRBV5-1",  "TRBV5-4",  "TRBV5-5",  "TRBV5-6", 
+                "TRBV5-8",  
+                "TRBV6-1",  "TRBV6-3",  "TRBV6-2",  "TRBV6-4",  "TRBV6-5",  "TRBV6-6",  "TRBV6-7",  
+                "TRBV7-1",  "TRBV7-2",  "TRBV7-3", 
+                "TRBV7-4",  "TRBV7-6",  "TRBV7-7",  "TRBV7-8",  "TRBV7-9",  
+                "TRBV9",
+                "TRBV10-1", "TRBV10-2", "TRBV10-3", 
+                "TRBV11-1", "TRBV11-2", "TRBV11-3", 
+                "TRBV12-4", "TRBV12-3", "TRBV12-5", "TRBV13", "TRBV14",  
+                "TRBV15", "TRBV16",  "TRBV18", "TRBV19",  
+                "TRBV20-1", "TRBV21-1", "TRBV23-1", "TRBV24-1", "TRBV25-1", "TRBV27",  
+                "TRBV28", "TRBV29-1", "TRBV30")  
+
+TRAV_order <- c("TRAV1-1", "TRAV1-2",
+                "TRAV2",        
+                "TRAV3",
+                "TRAV4",              
+                "TRAV5",        
+                "TRAV6",        
+                "TRAV7",        
+                "TRAV8-1", "TRAV8-2", "TRAV8-3", "TRAV8-4", "TRAV8-6", "TRAV8-7", 
+                "TRAV9-1", "TRAV9-2",
+                "TRAV10", "TRAV11", "TRAV12-1", "TRAV12-2", "TRAV12-3", "TRAV13-1",    
+                "TRAV13-2", "TRAV14/DV4", "TRAV16", "TRAV17", "TRAV18", "TRAV19",       
+                "TRAV20", "TRAV21", "TRAV22", "TRAV23/DV6", "TRAV24", "TRAV25", "TRAV26-1",   "TRAV26-2", "TRAV27", "TRAV29/DV5",
+                "TRAV30", "TRAV31", "TRAV34", "TRAV35", "TRAV36/DV7", "TRAV38-1", "TRAV38-2/DV8", "TRAV39",
+                "TRAV40", "TRAV41")
+```
+
+\newline
+Now, need to wrangle the data and get what we want in terms of graphs for the paper.
+\newline
+\newline
+
+Supplementary Figure 8-11. TRAV, TRAJ, TRBV, TRBJ gene usage bar charts corresponding to circos plots shown in Fig. 4. Bars are stacked by normalised percentage frequencies (percentage frequency in each donor, summed and normalised by the number of donors to allow for comparison). Colours correspond to each donor.
+\newline
+\newline
+
+```{R GU Bar Charts, include=TRUE, echo=TRUE, eval = TRUE, fig.height=8, fig.width=6}
+
+library(circlize)
+library(RColorBrewer)
+
+epi_name <- c("SGP", "GLI", "QAR", "DPF", "GMF", "PKY")
+
+All_GU <- tibble("V.gene"= map(flu_seqs, "V.gene") %>% unlist(),
+                 "J.gene"= map(flu_seqs, "J.gene")  %>% unlist(),
+                 "Donor_Epitope"= map(flu_seqs, "V.gene") %>% unlist() %>% names()) %>% 
+  separate(Donor_Epitope, into = c("Donor", "Epitope"), sep = "/") %>%
+  separate(Epitope, into = c("Epitope", "AB"), sep = "_") %>%
+  mutate(AB=sub(pattern = "A\\d{1,}", replacement = "A", AB)) %>%
+  mutate(Epitope=factor(Epitope, levels= c("SGP", "GLI", "QAR", "DPF", "GMF", "PKY"))) %>%
+  mutate(Donor=sub(pattern = "-\\d{4}", replacement = "", Donor)) %>%
+  add_column(d=as.integer( recode(.$Epitope, "SGP"=4, "GLI"=5, "QAR"=4,
+                                  "DPF"=4, "GMF"=3, "PKY"=5)))
+
+scaleFUN <- function(x) sprintf("%.2f", x)
+
+plot_GU_bar <- function(gene, chain){
+  #GENE must be "V.gene" or "J.gene"
+  #CHAIN must be "ALPHA" or "BETA"
+  
+  GENE <- sym(gene)
+  
+  p<- All_GU %>% filter(AB==chain) %>%
+    group_by(Donor, !! GENE, Epitope, d) %>%
+    summarise(n=n()) %>% 
+    group_by(Epitope, Donor) %>% 
+    mutate(Frequency=n/( (sum(n)*d) )) %>%
+    ggplot(mapping = aes(x = !! GENE, y =  Frequency, fill = Donor)) +
+    geom_bar(stat = "identity" ) +
+    facet_wrap(~Epitope , scales = "free_y", ncol = 3)+ theme_pubr() + 
+    theme(axis.text.x = element_text(size = 10, angle = 90, hjust = 1, vjust = 0.5) ) +
+    #theme( panel.grid.major.y = element_blank(), panel.grid.minor = element_blank() ) +
+    scale_x_discrete(position = "bottom") +
+    scale_y_continuous(expand = c(0,0), labels = scaleFUN) +
+    theme_pubr() +
+    theme(legend.position="none")+
+    theme(text = element_text(size = 8),
+          axis.text.y = element_text(size = 8),
+          axis.title.x = element_text(margin = margin(0.25, 0, 0, 0, "cm"), size = 10),
+          axis.text.x = element_text(size = 8, angle = -45, vjust=0, hjust = 0.5) ) +
+    geom_bar(stat = "identity", color = "black", alpha=0) +
+    ylab("Normalised Percentage Frequency") + 
+    xlab(element_blank()) +  
+    coord_flip()
+  
+  ggsave(plot = p, filename = paste0("../output/", sub(pattern = ".gene", replacement = "", gene), tolower(chain), ".png"), 
+         device = "png", units = "cm", width = 20, height = 28, dpi = 300)
+  return(p)
+}
+
+plot_GU_bar("V.gene", "ALPHA")
+plot_GU_bar("J.gene", "ALPHA")
+plot_GU_bar("V.gene", "BETA")
+plot_GU_bar("J.gene", "BETA")
+
+```
+
+\newline
+\newline
+
+Figure 4. TCR VJ-Gene Usage Analysis of In vitro CD4+ Responses to Conserved Epitopes.\newline
+Percentage frequencies of V- and J- genes observed in response to a specific epitope, regardless of clonal expansion, were calculated for each donor. For each epitope, these values were summed and normalised to the number of donors (3-5 depending on epitope) to give the normalised percentage frequency (bar charts shown in Supplementary Fig. 8-11). (A-F) Circos plots showing TRAV and TRAJ gene usage cumulative percentage frequencies are shown. Chords link between V and J genes, left and right of the dashed line respectively, represent VJ pairing, with chord thickness proportional to the number of observed pairs. (G-L) Corresponding TRBV and TRBJ usage circos plots. Genes labelled on the outside of the circos were enriched above 5 %, labels for those below 5% are not shown. 
+\newline
+\newline
+
+```{R Make Circos Plots, include=TRUE, echo=TRUE, eval = TRUE, fig.height=10, fig.width=10}
+
+# The next code creates the normalised circos plots of VJ gene usage.
+# Modified a lot of code from Mike Shugay's plots and graphs here.
+
+All_GU %>%
+  group_by(Donor, V.gene, J.gene, Epitope, AB, d) %>% 
+  summarise(n=n()) %>% ungroup() %>% # gives the n of times that donor and VJ gene combo and epitope occurs
+  group_by(Epitope, Donor, AB) %>%  # now it gives epitope and donor combinations for Alpha and Beta
+  mutate(Freq=n/( (sum(n)*d) ) # divides the specific donor VJ combo by sum of combinations per donor sum(n) and then normalise per number of donors
+  ) %>% ungroup() %>% select(-c(Donor, d, n)) %>%
+  group_by(V.gene, J.gene, Epitope, AB) %>%
+  summarise_all(sum) %>% arrange(Freq)-> Matrix # this matrix has all epitopes
+
+circos_fxn <- function(x, y, z){
+  # x is the epitope
+  # y is the chain
+  RUN <- NULL
+  
+  RUN <- Matrix %>% ungroup() %>% filter(Epitope==x & AB==y) %>%
+    select(-c(Epitope, AB)) %>% spread(J.gene, value = Freq, fill = 0) %>% 
+    select(-V.gene) %>% as.matrix()
+  
+  rownames(RUN) <- Matrix %>% ungroup() %>% filter(Epitope==x & AB==y) %>%
+    select(-c(Epitope, AB)) %>% spread(J.gene, value = Freq, fill = 0) %>% 
+    pull(V.gene) 
+  
+  png(paste("../output/VJ_Usage/", z, tolower(x), "_", tolower(y), ".png", sep = ""), width = 10, height = 10, 
+      bg="transparent", units = "cm", pointsize = 9, res = 300)
+  
+  circos.clear()
+  circos.par(start.degree = -90)
+  
+  if (y=="ALPHA"){
+    rcols <- rep(colorRampPalette(brewer.pal(9, "YlOrBr")[3:8])(12), nrow(RUN)/12 + 1)[1:nrow(RUN)]
+    ccols <- rep(colorRampPalette(brewer.pal(9, "YlOrBr")[3:8])(12), ncol(RUN)/12 + 1)[1:ncol(RUN)]
+  }else{
+    rcols <- rep(colorRampPalette(brewer.pal(9, "Greens")[3:8])(12), nrow(RUN)/12 + 1)[1:nrow(RUN)]
+    ccols <- rep(colorRampPalette(brewer.pal(9, "Greens")[3:8])(12), ncol(RUN)/12 + 1)[1:ncol(RUN)]
+  }
+  
+  names(rcols) <- sort(rownames(RUN))
+  names(ccols) <- sort(colnames(RUN))
+  
+  chordDiagram(RUN, annotationTrack = "grid",
+               grid.col = c(rcols, ccols),
+               preAllocateTracks = list(track.height = 0.4), transparency = 0.5,
+               big.gap = 20, scale = F, link.sort = T, link.decreasing = F,
+               small.gap = 1,
+               directional = 1)
+  
+  circos.trackPlotRegion(track.index = 1, bg.border = NA, 
+                         panel.fun = function(x, y) {
+                           if (get.cell.meta.data("xrange")>0.05){
+                             sector.name = get.cell.meta.data("sector.index")
+                             xlim = get.cell.meta.data("xlim")
+                             ylim = get.cell.meta.data("ylim")
+                             circos.text(mean(xlim), ylim[1], cex = 1.0, sector.name, 
+                                         facing = "clockwise", niceFacing = T, adj = c(0, 0.5))}})
+  
+  abline(v = 0, lty = 2, col = "#00000080")
+  dev.off()
+  return()
+}
+
+circos_tib <- tribble(~x, ~y, ~z,
+                      "SGP", "ALPHA", 1,
+                      "GLI", "ALPHA", 2,
+                      "QAR", "ALPHA", 3,
+                      "DPF", "ALPHA", 4,
+                      "GMF", "ALPHA", 5,
+                      "PKY", "ALPHA", 6,
+                      "SGP", "BETA", 1,
+                      "GLI", "BETA", 2,
+                      "QAR", "BETA", 3,
+                      "DPF", "BETA", 4,
+                      "GMF", "BETA", 5,
+                      "PKY", "BETA", 6
+)
+
+pmap(circos_tib, circos_fxn)
+
+# make a grid
+f1 <- dir(path = "../output/VJ_Usage/")
+library(png)
+library(grid)
+library(gridExtra)
+r1 <- purrr::map(f1, #create list using map
+                 function(x){
+                   readPNG(source=paste0("../output/VJ_Usage/", x)
+                   )})
+
+g1 <- lapply(r1, grid::rasterGrob) # render the raster object
+grid.newpage()
+grid_vj <- grid.arrange(grobs=g1, 
+                        ncol =2, 
+                        top = NULL,
+                        vp = viewport(width = 1, height = 1), as.table=T)
+ggsave(filename = "../output/grid_vj.png", 
+       plot = grid_vj, width = 10, height = 30, dpi = 500, units = "cm")
+
+```
+
+\newline
+\newline
+
+```{R Make Circos Plots 2, include=TRUE, echo=TRUE, eval = TRUE, fig.height=10, fig.width=10}
+
+# this is just another way to show the VJ plots for more detailed analysis of the pairing.
+
+circos_fxn_2 <- function(x, y, z){
+  # x is the epitope
+  # y is the chain
+  RUN <- NULL
+  
+  RUN <- Matrix %>% ungroup() %>% filter(Epitope==x & AB==y) %>%
+    select(-c(Epitope, AB)) %>% spread(J.gene, value = Freq, fill = 0) %>% 
+    select(-V.gene) %>% as.matrix()
+  
+  rownames(RUN) <- Matrix %>% ungroup() %>% filter(Epitope==x & AB==y) %>%
+    select(-c(Epitope, AB)) %>% spread(J.gene, value = Freq, fill = 0) %>% 
+    pull(V.gene) 
+  
+  png(paste("../output/VJ_Usage/", z, tolower(x), "_", tolower(y), ".png", sep = ""), width = 16, height = 16, 
+      bg="transparent", units = "cm", pointsize = 12, res = 300)
+  
+  circos.clear()
+  circos.par(start.degree = -90)
+  
+  if (y=="ALPHA"){
+    rcols <- rep(colorRampPalette(brewer.pal(9, "YlOrBr")[3:8])(12), nrow(RUN)/12 + 1)[1:nrow(RUN)]
+    ccols <- rep(colorRampPalette(brewer.pal(9, "YlOrBr")[3:8])(12), ncol(RUN)/12 + 1)[1:ncol(RUN)]
+  }else{
+    rcols <- rep(colorRampPalette(brewer.pal(9, "Greens")[3:8])(12), nrow(RUN)/12 + 1)[1:nrow(RUN)]
+    ccols <- rep(colorRampPalette(brewer.pal(9, "Greens")[3:8])(12), ncol(RUN)/12 + 1)[1:ncol(RUN)]
+  }
+  
+  names(rcols) <- sort(rownames(RUN))
+  names(ccols) <- sort(colnames(RUN))
+  
+  chordDiagram(RUN, annotationTrack = "grid",
+               grid.col = c(rcols, ccols),
+               preAllocateTracks = list(track.height = 0.05), transparency = 0.5,
+               big.gap = 20, scale = F, link.sort = T, link.decreasing = F,
+               small.gap = 1,
+               directional = 1)
+  
+  circos.trackPlotRegion(track.index = 1, bg.border = NA, 
+                         panel.fun = function(x, y) {
+                           if (get.cell.meta.data("xrange")>0.100){
+                             sector.name = get.cell.meta.data("sector.index")
+                             xlim = get.cell.meta.data("xlim")
+                             ylim = get.cell.meta.data("ylim")
+                             circos.text(mean(xlim), ylim[1], cex = 1.0, sector.name, 
+                                         facing = "bending.outside", niceFacing = T,
+                                         adj = c(0.5, 1.0))
+                           }})
+  
+  abline(v = 0, lty = 2, col = "#00000080")
+  dev.off()
+  return()
+}
+
+pmap(circos_tib, circos_fxn_2)
+
+# make a grid
+f1 <- dir(path = "../output/VJ_Usage/")
+library(png)
+library(grid)
+library(gridExtra)
+r1 <- purrr::map(f1, #create list using map
+                 function(x){
+                   readPNG(source=paste0("../output/VJ_Usage/", x)
+                   )
+                 })
+g1 <- lapply(r1, grid::rasterGrob) # render the raster object
+grid.newpage()
+grid_vj <- grid.arrange(grobs=g1, 
+                        ncol =2, 
+                        top = NULL,
+                        vp = viewport(width = 1, height = 1), as.table=T)
+ggsave(filename = "../output/grid_vj2.png", 
+       plot = grid_vj, width = 10, height = 30, dpi = 500, units = "cm")
+
+```
+
+```{R Grab VJ-genes, include=TRUE, echo=TRUE, eval = TRUE, results = 'asis'}
+
+# Pull out the relevant genes from the lists
+Alpha_TRAV <- map(flu_seqs[grep("ALPHA", names(flu_seqs))], "V.gene")
+Alpha_TRAJ <- map(flu_seqs[grep("ALPHA", names(flu_seqs))], "J.gene")
+Beta_TRBV <- map(flu_seqs[grep("BETA", names(flu_seqs))], "V.gene")
+Beta_TRBJ <- map(flu_seqs[grep("BETA", names(flu_seqs))], "J.gene")
+
+```
+
+\newline
+Have to work out if the V gene usage is actually more narrow for the alpha chain and more diverse for the beta chain: Use tcR Entropy calculation from tcR package  and Mike Shugay's script & data. This was important as it could be done for V-genes and V-families.\newline
+\newline
+Figure 4. TCR VJ-Gene Usage Analysis of In vitro CD4+ Responses to Conserved Epitopes.
+\newline
+(M) TRAV and TRBV Shannon entropy values for each epitope-specific response. Boxplots correspond to median entropy and interquartile range across all donors. Dots on top of each boxplot correspond to specific values for each donor. Higher entropy means the data set is more diverse. (N) TRAV and TRBV KL distance values from the naïve repertoire (see methods for details on background V gene usage). Greater distance values correspond to less diversity and narrower gene usage than would be expected from the normal repertoire.
+
+
+```{R Work out entropy, include=TRUE, echo=TRUE, eval = TRUE, fig.height=10, fig.width=3}
+
+# work out entropy for the V genes.
+
+library(tcR)
+
+TRAV_entropy <- map(Alpha_TRAV, table ) %>% map(function(x) entropy(.data = x, .do.norm = T)) %>% 
+  as_tibble() %>% t() %>% as_tibble(rownames = "ID") %>% 
+  separate(ID, into = c("Donor", "Epitope"), sep = "/") %>%
+  mutate(Epitope = factor(Epitope, 
+                          levels = c('SGP_ALPHA', 'GLI_ALPHA', 'QAR_ALPHA', 
+                                     'DPF_ALPHA', 'GMF_ALPHA', 'PKY_ALPHA'),
+                          labels = c("SGP", "GLI", "QAR", "DPF", "GMF", "PKY"))) %>% rename(ENTROPY = V1) %>% 
+  add_column(GENE = "TRAV")
+
+TRAJ_entropy <- map(Alpha_TRAJ, table ) %>% map(function(x) entropy(.data = x, .do.norm = T)) %>%
+  as_tibble() %>% t() %>% as_tibble(rownames = "ID") %>% 
+  separate(ID, into = c("Donor", "Epitope"), sep = "/") %>%
+  mutate(Epitope = factor(Epitope, 
+                          levels = c('SGP_ALPHA', 'GLI_ALPHA', 'QAR_ALPHA', 
+                                     'DPF_ALPHA', 'GMF_ALPHA', 'PKY_ALPHA'),
+                          labels = c("SGP", "GLI", "QAR",
+                                     "DPF", "GMF", "PKY"))) %>% rename(ENTROPY = V1) %>% 
+  add_column(GENE = "TRAJ")
+
+TRBV_entropy <- map(Beta_TRBV, table ) %>% map(function(x) entropy(.data = x, .do.norm = T)) %>%
+  as_tibble() %>% t() %>% as_tibble(rownames = "ID") %>% 
+  separate(ID, into = c("Donor", "Epitope"), sep = "/") %>%
+  mutate(Epitope = factor(Epitope, 
+                          levels = c('SGP_BETA', 'GLI_BETA', 'QAR_BETA', 
+                                     'DPF_BETA', 'GMF_BETA', 'PKY_BETA'),
+                          labels = c("SGP", "GLI", "QAR",
+                                     "DPF", "GMF", "PKY"))) %>% rename(ENTROPY = V1) %>%
+  add_column(GENE = "TRBV")
+
+TRBJ_entropy <- map(Beta_TRBJ, table ) %>% map(function(x) entropy(.data = x, .do.norm = T)) %>%
+  as_tibble() %>% t() %>% as_tibble(rownames = "ID") %>% 
+  separate(ID, into = c("Donor", "Epitope"), sep = "/") %>%
+  mutate(Epitope = factor(Epitope, 
+                          levels = c('SGP_BETA', 'GLI_BETA', 'QAR_BETA', 
+                                     'DPF_BETA', 'GMF_BETA', 'PKY_BETA'),
+                          labels = c("SGP", "GLI", "QAR",
+                                     "DPF", "GMF", "PKY"))) %>% rename(ENTROPY = V1) %>% 
+  add_column(GENE = "TRBJ")
+
+
+bind_rows(TRAV_entropy, TRBV_entropy) %>% 
+  ggplot(mapping = aes(x = GENE, y = ENTROPY, fill = GENE)) +
+  geom_boxplot() +   
+  geom_dotplot(binaxis = "y", stackdir = "center", position=position_dodge(0.75), binwidth = 0.15,
+               stackgroups = F,  stackratio = 1, dotsize = 1.0) +
+  facet_wrap(~Epitope, ncol =1) + ggtitle(element_blank()) + 
+  scale_fill_manual(values = c(  "#FE9929", "#74C476")) +
+  labs(y = "Shannon Entropy") + theme_pubr() +   theme(legend.position="none") +
+  theme(#text = element_text(size = 15),
+    #plot.title = element_text(size = 15),
+    #axis.text.y = element_text(size = 15),
+    axis.text.x = element_text(angle = -45, 
+                               vjust = 0.5, hjust = 0.5 ), axis.title.x = element_blank()) +
+  ggsave("../output/Entropy_Genes.png", device = "png", units = "cm", width = 3.5, height = 29, dpi = 500)
+
+```
+
+\newline
+V-family entropy (code below) looked very similar to V-gene entropy these were not included in the publication
+```{R Repeat for V-Families, include=TRUE, echo=TRUE, eval = TRUE, fig.height=10, fig.width=3}
+
+# Now repeat for v families.
+
+library(data.table)
+
+df.va.clusters <- fread("../resources/TRAV_HomoSapiens.df_clusters.txt") %>%
+  mutate(species = "HomoSapiens", v.alpha = id, v.alpha.c = cluster) %>%
+  select(-id, -cluster) %>%
+  mutate(v.alpha = str_split_fixed(v.alpha, fixed("*"), 2)[,1])
+
+
+df.vb.clusters <- fread("../resources/TRBV_HomoSapiens.df_clusters.txt") %>%
+  mutate(species = "HomoSapiens", v.beta = id, v.beta.c = cluster) %>%
+  select(-id, -cluster) %>%
+  mutate(v.beta = str_split_fixed(v.beta, fixed("*"), 2)[,1])
+
+TRAV_cluster <- All_GU %>% filter(AB=="ALPHA") %>%
+  rename( v.alpha = V.gene) %>% select(-c(J.gene, AB, d)) %>%
+  merge(df.va.clusters, all.x = T) %>% select(-v.alpha, -species) %>%
+  unite(ID, Donor, Epitope, sep = "/") %>% table() %>% as.matrix()
+
+TRAV_families <- NULL
+
+for (i in 1:length(Alpha_TRAV)) {
+  TRAV_families <- c(TRAV_families, entropy(TRAV_cluster[i, ], .do.norm = T))
+}
+
+TRAV_families <- tibble(ID=names(Alpha_TRAV), Entropy=TRAV_families) %>%
+  separate(ID, into = c("Donor", "Epitope"), sep = "/") %>%
+  mutate(Epitope = factor(Epitope, 
+                          levels = c('SGP_ALPHA', 'GLI_ALPHA', 'QAR_ALPHA', 
+                                     'DPF_ALPHA', 'GMF_ALPHA', 'PKY_ALPHA'),
+                          labels = c("SGP", "GLI", "QAR",
+                                     "DPF", "GMF", "PKY"))) %>%
+  add_column(GENE = "TRAV")
+
+# Now for TRBV
+
+TRBV_cluster <- All_GU %>% filter(AB=="BETA") %>%
+  rename( v.beta = V.gene) %>% select(-c(J.gene, AB, d)) %>%
+  merge(df.vb.clusters, all.x = T) %>% select(-v.beta, -species) %>%
+  unite(ID, Donor, Epitope, sep = "/") %>% table() %>% as.matrix()
+
+TRBV_families <- NULL
+
+for (i in 1:length(Beta_TRBV)) {
+  TRBV_families <- c(TRBV_families, entropy(TRBV_cluster[i, ]))
+}
+
+TRBV_families <- tibble(ID=names(Beta_TRBV), Entropy=TRBV_families) %>%
+  separate(ID, into = c("Donor", "Epitope"), sep = "/") %>%
+  mutate(Epitope = factor(Epitope, 
+                          levels = c('SGP_BETA', 'GLI_BETA', 'QAR_BETA', 
+                                     'DPF_BETA', 'GMF_BETA', 'PKY_BETA'),
+                          labels = c("SGP", "GLI", "QAR",
+                                     "DPF", "GMF", "PKY"))) %>%  
+  add_column(GENE = "TRBV")
+
+bind_rows(TRAV_families, TRBV_families) %>%
+  ggplot(mapping = aes(x = GENE, y = Entropy, fill = GENE)) +
+  geom_boxplot() +
+  geom_dotplot(binaxis = "y", stackdir = "center", position=position_dodge(0.75), binwidth = 0.15,
+               stackgroups = F,  stackratio = 1, dotsize = 1.0) +
+  facet_wrap(~Epitope, ncol =1) + ggtitle(element_blank()) +
+  theme_pubr() +   theme(legend.position="none") +
+  theme(#text = element_text(size = 15),
+    #plot.title = element_text(size = 15),
+    #axis.text.y = element_text(size = 15),
+    axis.text.x = element_text(angle = -45, 
+                               vjust = 0.5, hjust = 0.5 ), axis.title.x = element_blank()) +
+  scale_fill_manual(values = c(  "#FE9929", "#74C476")) +
+  ggsave("../output/Entropy_Families.png", device = "png", units = "cm", width = 3.5, height = 29, dpi = 500)
+
+```
+
+Figure 4. TCR VJ-Gene Usage Analysis of In vitro CD4+ Responses to Conserved Epitopes.
+\newline
+(N) TRAV and TRBV KL distance values from the naïve repertoire (see methods for details on background V gene usage). Greater distance values correspond to less diversity and narrower gene usage than would be expected from the normal repertoire.
+
+```{R KL distance of V-genes, include=TRUE, echo=TRUE, eval = TRUE, fig.height=10, fig.width=3}
+
+# Now KL distance
+# All code here from Mike Shugay with some slight edits.
+
+df.v.bg <- fread("../resources/v.bg.txt") %>%
+  filter(species %in% c("HomoSapiens")) %>%
+  group_by(gene, species) %>%
+  mutate(total.control = sum(count.control)) %>%
+  ungroup
+
+KL_Alpha <- merge(All_GU %>% filter(AB=="ALPHA") %>%
+                    rename( v.alpha = V.gene) %>% select(-c(J.gene, AB, d)),
+                  df.v.bg %>% filter(gene == "TRA") %>%
+                    # merging the data frames based on TRA,
+                    # although it's a complicated merge
+                    mutate(v.alpha = str_split_fixed(v.segm, fixed("*"), 2)[,1],
+                           count.control.a = count.control,
+                           total.control.a = total.control) %>%
+                    mutate(v.alpha = str_replace(v.alpha, "DV", "/DV") ) %>%
+                    select(v.alpha, species, count.control.a, total.control.a) %>%
+                    mutate(count.control.a = ifelse(is.na(count.control.a),
+                                                    0, count.control.a),
+                           total.control.a = mean(total.control.a, na.rm = T)
+                    ),
+                  #this whole section is working on the background df, not the data
+                  all.x = T) %>%
+  mutate(count.control.a = ifelse(is.na(count.control.a), 0, count.control.a),
+         total.control.a = mean(total.control.a, na.rm = T) ) %>%
+  
+  group_by(Donor, Epitope) %>% mutate(total= n()) %>% ungroup() %>%
+  group_by(Epitope, Donor, v.alpha, count.control.a,
+           total.control.a, total) %>%
+  summarise(count.a = n()) %>%
+  group_by(Epitope, Donor, total) %>%
+  summarise(KLDist = sum(count.a / total * log(count.a / total /
+                                                 (count.control.a + 1) * total.control.a))) %>%
+  add_column(GENE = "TRAV")
+
+
+
+KL_Beta <- merge(All_GU %>% filter(AB=="BETA") %>%
+                   rename( v.beta = V.gene) %>% select(-c(J.gene, AB, d)),
+                 df.v.bg %>% filter(gene == "TRB") %>%
+                   
+                   mutate(v.beta = str_split_fixed(v.segm, fixed("*"), 2)[,1],
+                          count.control.b = count.control,
+                          total.control.b = total.control) %>%
+                   
+                   select(v.beta, species, count.control.b, total.control.b) %>%
+                   mutate(count.control.b = ifelse(is.na(count.control.b),
+                                                   0, count.control.b),
+                          total.control.b = mean(total.control.b, na.rm = T)
+                   ), # this whole section is working on the background df, not the data
+                 all.x = T) %>%
+  mutate(count.control.b = ifelse(is.na(count.control.b), 0, count.control.b),
+         total.control.b = mean(total.control.b, na.rm = T) ) %>%
+  
+  group_by(Donor, Epitope) %>% mutate(total= n()) %>% ungroup() %>%
+  group_by(Epitope, Donor, v.beta, count.control.b,
+           total.control.b, total) %>%
+  summarise(count.b = n()) %>%
+  group_by(Epitope, Donor, total) %>%
+  summarise(KLDist = sum(count.b / total * log(count.b / total /
+                                                 (count.control.b + 1) * total.control.b))) %>%
+  add_column(GENE = "TRBV")
+
+
+bind_rows(KL_Alpha, KL_Beta) %>%
+  ggplot(mapping = aes(x = GENE, y = KLDist, fill = GENE)) +
+  geom_boxplot() +
+  geom_dotplot(binaxis = "y", stackdir = "center", position=position_dodge(0.75), binwidth = 0.15,
+               stackgroups = F,  stackratio = 1, dotsize = 1.0) +
+  facet_wrap(~Epitope, ncol = 1) + ggtitle(element_blank()) +
+  scale_fill_manual(values = c(  "#FE9929", "#74C476")) +
+  labs(y = "KL Distance from the Naive Repertiore") + theme_pubr()+
+  theme(legend.position="none") +
+  theme(#text = element_text(size = 15),
+    #plot.title = element_text(size = 15),
+    #axis.text.y = element_text(size = 15),
+    axis.text.x = element_text(angle = -45,
+                               vjust = 0.5, hjust = 0.5), axis.title.x = element_blank()) +
+  ggsave("../output/KL_Dist.png", device = "png", units = "cm", width = 3.5, height = 29, dpi = 500)
+
+```
+\newline
+Figure 7: CDR3 Amino Acid Enrichments, Motifs and Public sequences Found in Sequences Responding to Conserved HLA-DR1 Epitopes \newline
+The central six amino acids of CDR3 sequences in response to each epitope were analysed in order to quantify overall sequence charge (A) and hydrophobicity (B), see methods for analysis details.
+\newline
+```{R Alakazam, include=TRUE, echo=TRUE, eval = TRUE, fig.height=4, fig.width=4}
+
+library(alakazam)
+
+# this is isolating middle 6 amino acids
+cdr3_mid_six_aa <- function(x){substr(x, ceiling((nchar(x)-5)/2), 
+                                      nchar(x)-floor((nchar(x)-5)/2))} 
+
+
+All_CDR3 <- tibble("CDR3" = map(flu_seqs, "CDR3.amino.acid.sequence") %>% unlist(),
+                   "V.gene"= map(flu_seqs, "V.gene") %>% unlist(),
+                   "J.gene"= map(flu_seqs, "J.gene")  %>% unlist(),
+                   "Donor_Epitope"= map(flu_seqs, "V.gene") %>% unlist() %>% names()) %>% 
+  separate(Donor_Epitope, into = c("Donor", "Epitope"), sep = "/") %>%
+  separate(Epitope, into = c("Epitope", "AB"), sep = "_") %>%
+  mutate(AB=sub(pattern = "A\\d{1,}", replacement = "A", AB) %>% tolower()) %>%
+  mutate(Epitope=factor(Epitope, levels= c("SGP", "GLI", "QAR", "DPF", "GMF", "PKY"))) %>%
+  mutate(Donor=sub(pattern = "-\\d{4}", replacement = "", Donor)) %>%
+  add_column("Length"=nchar(.$CDR3))
+
+All_CDR3_mid_six <- All_CDR3 %>% mutate(CDR3=map_chr(CDR3, cdr3_mid_six_aa)) %>% 
+  aminoAcidProperties(property = c("bulk", "charge", "gravy"),
+                      seq = "CDR3",  pH=7.4,  normalize = F)
+
+
+### Ready to make graphs
+make_charge_plot <- function(chain){
+  p <- All_CDR3_mid_six %>% filter(AB==chain) %>%
+    gather(CDR3_AA_CHARGE, key = "Property", value = "Usage") %>%
+    mutate(Property = factor(Property,
+                             levels = c(paste0("CDR3_AA_", "CHARGE")),
+                             labels = c("Charge"))) %>%
+    group_by(Donor, Epitope, Property, Usage) %>%
+    ggplot(mapping = aes(x = Epitope, y =  Usage)) + 
+    geom_rect(aes(xmin= 0.4, xmax = 6.6, ymin = 0, ymax = 3.5), fill = alpha("dodgerblue", 0.004) )  +
+    geom_rect(aes(xmin= 0.4, xmax = 6.6, ymin = 0, ymax = -3.5), fill = alpha("firebrick1", 0.004) ) +
+    geom_hline(yintercept = 0) +
+    geom_point(stat = "identity", position = position_jitter(height = 0.3, width = 0.2), size = 0.4 ) +
+    theme_pubr() + 
+    scale_x_discrete(position = "bottom") + 
+    scale_fill_manual(values = c("darkolivegreen1", "seagreen3", 
+                                 "pink1", "darkorchid1", 
+                                 "darkorange", "cornsilk")) +
+    theme(legend.position="none")+
+    theme(text = element_text(size=14), 
+          plot.title = element_text(size=14),  
+          axis.text.y = element_text(size=14),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(), 
+          axis.text.x = element_text(angle = -45, size=14,
+                                     vjust = 0.5, hjust = 0.5)) +
+    scale_y_continuous(limits = c(-3.5, 3.5), expand = c(0,0),
+                       breaks = c(-3, -2, -1,  0, 1, 2, 3)) +
+    stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean,
+                 geom = "crossbar", width = 0.8, fatten = 1.5, color = "grey90")
+  
+  return(p) 
+  
+  ggsave(filename = paste0("../output/", chain, "charge", ".png"),
+         plot = p,
+         device = "png", units = "cm", width = 8, height = 8, dpi = 300)
+}
+
+# plot for the alpha and beta chains
+make_charge_plot("alpha")
+make_charge_plot("beta")
+
+make_gravy_plot <- function(input, chain){
+  p <- All_CDR3_mid_six %>% filter(AB==chain) %>%
+    gather(CDR3_AA_GRAVY, 
+           key = "Property", value = "Usage") %>%
+    mutate(Property = factor(Property,
+                             levels = c(paste0("CDR3_AA_", "GRAVY")),
+                             labels = c("GRAVY"))) %>%
+    group_by(Donor, Epitope, Property, Usage) %>%
+    ggplot(mapping = aes(x = Epitope, y =  Usage)) + 
+    geom_rect(aes(xmin= 0.4, xmax = 6.6, ymin = 0, ymax = 2.5), fill = alpha("ghostwhite", 0.04) )  +
+    geom_rect(aes(xmin= 0.4, xmax = 6.6, ymin = 0, ymax = -4.0), fill = alpha("darkolivegreen1", 0.004) ) +
+    geom_hline(yintercept = 0) +
+    geom_point(stat = "identity", position = position_jitter(height = 0.3, width = 0.2), size = 0.4 ) +
+    theme_pubr() + 
+    scale_x_discrete(position = "bottom") + 
+    scale_fill_manual(values = c("darkolivegreen1", "seagreen3", 
+                                 "pink1", "darkorchid1", 
+                                 "darkorange", "cornsilk")) +
+    theme(legend.position="none")+
+    theme(text = element_text(size=14), 
+          plot.title = element_text(size=14),  
+          axis.text.y = element_text(size=14),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(), 
+          axis.text.x = element_text(angle = -45, size=14,
+                                     vjust = 0.5, hjust = 0.5)) +
+    scale_y_continuous(limits = c(-4, 2.5), expand = c(0,0),
+                       breaks = c(-3, -2, -1,  0, 1, 2)) +
+    stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean,
+                 geom = "crossbar", width = 0.8, fatten = 1.5, color = "firebrick")
+  
+  return(p)
+  
+  ggsave(filename = paste0("../output/", chain, "gravy", ".png"),
+         plot = p,
+         device = "png", units = "cm", width = 8, height = 8, dpi = 300)
+}
+
+# plot for the alpha and beta chains
+make_gravy_plot(properties_alpha, "alpha")
+make_gravy_plot(properties_beta, "beta")
+
+
+```
+\newline
+Figure 6: CDR3 Analysis Demonstrates that V-gene Germline Encoded CDR3 Residues are Not in Contact with the Peptide.\newline
+We analysed CDR3 sequence contacts in order to determine whether germline V-gene encoded residues were in contact with the peptide, and thus could provide a rationale for specific V-gene enrichment. For example, for an alpha chain encoded by TRAV8-4 the germline amino acids potentially included in the CDR3 are CAVS, after this point recombination may introduce random residues (as well as removing residues). CDR3α contacts to the peptide made by F11 (A) and HA1.7 (B) are shown. All contacts within 4Å are represented as dashed black lines, with sequence linker diagrams shown adjacent. For each TCR, we searched all HLA-DR1-PKY specific sequences identified in clonotyping for matching sequences encoded by the same V-gene and of the same length. These were represented by amino acid frequency plots. CDR3β contacts to the peptide, sequence linkers and clonotyping sequences are displayed for F11 (C) and HA1.7 (D). No HLA contacts are shown.
+\newline
+```{R CDR3 ggseqplots, include=TRUE, echo=TRUE, eval = TRUE, fig.height=4, fig.width=8}
+
+library(ggseqlogo)
+library(stringr)
+
+freq_col <- make_col_scheme(
+  chars =c('R','H','K',
+           'D','E'),
+  groups = c('Basic','Basic','Basic',
+             'Acidic','Acidic'),
+  cols = c("deepskyblue1","deepskyblue1","deepskyblue1",
+           "firebrick1","firebrick1"))
+
+# Fxn to subset out epitope and TRAV gene and length
+gene_fxn <- function(epi, gene, len){
+  p <- All_CDR3 %>% filter(Epitope==epi) %>% filter(V.gene==gene) %>% 
+    filter(Length==len) %>% {ggplot() + 
+        geom_logo(na.omit((.) %>% pull(CDR3)), plot = TRUE,
+                  col_scheme = freq_col, 
+                  method = 'probability',
+                  seq_type = "aa",
+                  font = "helvetica_bold",
+                  stack_width = 0.98) + 
+        theme_logo(base_size = 20) + 
+        theme_pubr() + 
+        theme( panel.grid.minor = element_blank(), panel.grid.major = element_blank() ) +
+        theme(legend.position = "right", 
+              axis.line.x = element_line(size = 1, color = 'black'),
+              axis.ticks.x = element_line(size = 1, color = 'black'),
+              axis.line.y = element_line(size = 1, color = 'black'),
+              axis.ticks.y = element_line(size = 1, color = 'black')  
+        ) + theme(legend.position="none")}
+  
+  ggsave(filename = tolower(paste0("../output/", epi, gene, "_", len, ".png")), plot = p,
+         height = 4, width = 0.8*len, units = "cm", dpi = 300)
+  
+  return(p) 
+  
+}
+
+gene_fxn("PKY", "TRAV8-4", 12)
+gene_fxn("PKY", "TRAV8-4", 15)
+gene_fxn("PKY", "TRBV24-1", 12)
+gene_fxn("PKY", "TRBV28", 15)
+
+#Length Only
+length_fxn <- function(epi, chain, len){
+  p <- All_CDR3 %>% 
+    filter(Epitope==epi) %>% filter(AB==chain) %>% 
+    filter(Length==len) %>% {ggplot() + 
+        geom_logo(na.omit((.) %>% pull(CDR3)), plot = TRUE,
+                  col_scheme = freq_col, 
+                  method = 'probability',
+                  seq_type = "aa",
+                  font = "helvetica_bold",
+                  stack_width = 0.98) + 
+        theme_logo(base_size = 20) + 
+        theme_pubr() +
+        theme( panel.grid.minor = element_blank(), panel.grid.major = element_blank() ) +
+        theme(legend.position = "right", 
+              axis.line.x = element_line(size = 1, color = 'black'),
+              axis.ticks.x = element_line(size = 1, color = 'black'),
+              axis.line.y = element_line(size = 1, color = 'black'),
+              axis.ticks.y = element_line(size = 1, color = 'black')  
+        ) + theme(legend.position="none")}
+  return(p)
+}
+
+# View the same plots for length only
+
+#length_fxn("PKY", "alpha", 12)
+#length_fxn("PKY", "alpha", 15)
+#length_fxn("PKY", "beta", 12)
+#length_fxn("PKY", "beta", 15)
+
+```
+
+\newline
+Supplementary tables of counts and reads \newline
+\newline
+
+```{r tables of counts and clones}
+
+###################################################################################################################
+# MAKING TABLES OF THE NUMBER OF READS 
+###################################################################################################################
+
+library(tableHTML)
+
+# Table of data
+# Clonotypes per donor & epitope
+
+# Donor 1 2 3 4 5
+# SGP
+# GLI
+# QAR
+# DPF
+# GMF
+# PKY
+# 5 * 6 = 30 * 2 (alpha and beta) = 60
+
+Clone_flu_seq_alpha <- data.frame('DONOR-1'=NA, 
+                                  'DONOR-2'=NA, 
+                                  'DONOR-3'=NA, 
+                                  'DONOR-4'=NA, 
+                                  'DONOR-5'=1:6,
+                                  row.names = c("SGP", "GLI", "QAR","DPF", "GMF", "PKY"), check.names = F) 
+
+# Can you re analyse this with Map and Possibly or Safely?
+
+for (j in 1:5)
+{
+  
+  tryCatch( {for (i in 1:6){
+    
+    tryCatch(
+      {
+        Clone_flu_seq_alpha[i, j] <-  length(
+          map(flu_seqs[grep(
+            paste(colnames(Clone_flu_seq_alpha[j]),"-..../", rownames(Clone_flu_seq_alpha[i, ]), "_ALPHA", sep = "" )
+            , names(flu_seqs))], "CDR3.amino.acid.sequence")[[1]])
+      }, error=function(e){}
+    )
+  }   
+    
+  }, error=function(e){} )
+}
+
+
+Clone_flu_seq_beta <- data.frame('DONOR-1'=NA, 
+                                 'DONOR-2'=NA, 
+                                 'DONOR-3'=NA, 
+                                 'DONOR-4'=NA, 
+                                 'DONOR-5'=1:6,
+                                 row.names = c("SGP", "GLI", "QAR",
+                                               "DPF", "GMF", "PKY"), check.names = F)
+
+for (j in 1:5)
+{
+  
+  tryCatch( {for (i in 1:6){
+    
+    tryCatch(
+      {
+        Clone_flu_seq_beta[i, j] <-  length(
+          map(flu_seqs[grep(
+            paste(colnames(Clone_flu_seq_beta[j]),"-..../", rownames(Clone_flu_seq_beta[i, ]), "_BETA", sep = "" )
+            , names(flu_seqs))], "CDR3.amino.acid.sequence")[[1]])
+      }, error=function(e){}
+    )
+  }   
+    
+  }, error=function(e){} )
+}
+
+###################################################################################################################
+# MAKING TABLES OF THE COUNTS 
+###################################################################################################################
+
+Counts_flu_seq_alpha <- data.frame('DONOR-1'=NA, 
+                                   'DONOR-2'=NA, 
+                                   'DONOR-3'=NA, 
+                                   'DONOR-4'=NA, 
+                                   'DONOR-5'=1:6,
+                                   row.names = c("SGP", "GLI", "QAR",
+                                                 "DPF", "GMF", "PKY"), check.names = F) 
+for (j in 1:5)
+{
+  tryCatch( {for (i in 1:6)
+  {
+    
+    tryCatch(
+      {
+        Counts_flu_seq_alpha[i, j] <-  sum(
+          map(flu_seqs[grep(
+            paste(colnames(Counts_flu_seq_alpha[j]),"-..../", rownames(Counts_flu_seq_alpha[i, ]), "_ALPHA", sep = "" )
+            , names(flu_seqs))], "Read.count")[[1]])
+      }, error=function(e){}
+    )
+  }   
+    
+  }, error=function(e){} )
+}
+
+
+Counts_flu_seq_beta <- data.frame('DONOR-1'=NA, 
+                                  'DONOR-2'=NA, 
+                                  'DONOR-3'=NA, 
+                                  'DONOR-4'=NA, 
+                                  'DONOR-5'=1:6,
+                                  row.names = c("SGP", "GLI", "QAR",
+                                                "DPF", "GMF", "PKY"), check.names = F)
+
+for (j in 1:5)
+{
+  
+  tryCatch( {for (i in 1:6)
+  {
+    tryCatch(
+      {
+        Counts_flu_seq_beta[i, j] <-  sum(
+          map(flu_seqs[grep(
+            paste(colnames(Counts_flu_seq_beta[j]),"-..../", rownames(Counts_flu_seq_beta[i, ]), "_BETA", sep = "" ),
+            names(flu_seqs))], "Read.count")[[1]])
+      }, error=function(e){}
+    )
+  }   
+    
+  }, error=function(e){} )
+}
+
+
+alpha_clone <- tableHTML(Clone_flu_seq_alpha,
+                         rownames = T,
+                         #   second_header = list(c(1, 2, 2), c('Names', 'A', 'B')),
+                         caption = "Number of unique TCR-Alpha clones")
+
+alpha_count <- tableHTML(Counts_flu_seq_alpha,
+                         rownames = T,
+                         #   second_header = list(c(1, 2, 2), c('Names', 'A', 'B')),
+                         caption = "Total TCR-Alpha counts")
+
+beta_clone <- tableHTML(Clone_flu_seq_beta,
+                        rownames = T,
+                        #   second_header = list(c(1, 2, 2), c('Names', 'A', 'B')),
+                        caption = "Number of unique TCR-Beta clones")
+
+beta_count <- tableHTML(Counts_flu_seq_beta,
+                        rownames = T,
+                        #   second_header = list(c(1, 2, 2), c('Names', 'A', 'B')),
+                        caption = "Total TCR-Beta counts")
+
+write_tableHTML(alpha_clone, file = "../output/alpha_clones.html")
+write_tableHTML(alpha_count, file = "../output/alpha_counts.html")
+write_tableHTML(beta_clone, file = "../output/beta_clones.html")
+write_tableHTML(beta_count, file = "../output/beta_counts.html")
+
+```
+
+
+```{r Publics and VDJ Annotation Notes}
+
+# http://www.imgt.org/IMGTrepertoire/Proteins/proteinDisplays.php?species=human&latin=Homo%20sapiens&group=TRAV
+# http://www.imgt.org/IMGTrepertoire/Proteins/proteinDisplays.php?species=human&latin=Homo%20sapiens&group=TRAJ
+# http://www.imgt.org/IMGTrepertoire/Proteins/proteinDisplays.php?species=human&latin=Homo%20sapiens&group=TRBV
+# http://www.imgt.org/IMGTrepertoire/Proteins/proteinDisplays.php?species=human&latin=Homo%20sapiens&group=TRBJ
+
+# Find the duplicates using dplyr, group_by
+public_df <- All_CDR3 %>% group_by(CDR3, Epitope) %>% filter(n()>1) %>%  ungroup() %>% 
+  arrange(CDR3) %>% arrange(Epitope) %>% arrange(AB)
+
+public_df
+
+write.csv(public_df, file = "../output/publics.csv")
+
+# Problem here at ALPHA...
+
+# You dont have all the data from all donors...
+
+# Gonna need a whole new script.
+
+```
+
+
+Copying the network diagram approach from Shugay and his TCRNet paper.
+
+```{R Network Diagrams, include=TRUE, echo=TRUE, eval = TRUE, fig.height=6, fig.width=8}
+
+library(dplyr)
+library(data.table)
+library(ggplot2)
+library(forcats)
+library(parallel)
+library(stringr)
+library(reshape2)
+library(igraph)
+library(msa)
+library(stringdist)
+library(broom)
+library(GGally)
+library(ggseqlogo)
+library(network)
+library(gridExtra)
+library(cowplot)
+library(scales)
+
+find_pairs <- function(x, y = x) {
+  res <- stringdistmatrix(x, y,
+                          method = "lv",
+                          useNames = "strings",
+                          nthread = 6) %>%
+    reshape2::melt() %>%
+    filter(value == 1 ) %>%
+    select(-value)
+  colnames(res) <- c("from.cdr3", "to.cdr3")
+  res
+}
+
+# Graph data frame
+
+alpha_pairs <- find_pairs(All_CDR3 %>% filter(AB=="alpha") %>% #filter(Epitope=="PKY") %>%
+                            pull(CDR3) %>% unique)
+
+# graph layout/component naming function
+layout_graph <- function(graph) {
+  set.seed(42)
+  
+  gg <- graph %>%
+    #select(-sample_id) %>%
+    graph_from_data_frame %>%
+    simplify
+  
+  cc <- clusters(gg)
+  
+  coords <- gg %>%
+    layout_with_graphopt(niter = 3000, charge = 0.005)
+  
+  data.frame(cdr3aa = names(V(gg)),
+             x = coords[,1],
+             y = coords[,2],
+             stringsAsFactors = F) %>%
+    merge(
+      data.frame(cdr3aa = names(cc$membership),
+                 cid = cc$membership,
+                 cid2 = paste0(graph$sample_id[1], "_C", cc$membership)))
+}
+
+# apply to both samples
+# compute_mds <- function(graph) {
+#   graph %>%
+#     group_by(sample_id) %>%
+#     do(layout_graph(.)) %>% # layout graph was included here
+#     ungroup %>%
+#     merge(df.tcrnet %>%
+#             group_by(cdr3aa, sample_id) %>%
+#             summarise(freq = sum(freq)),
+#           by = c("cdr3aa", "sample_id"))
+# }
+
+alpha_pairs_graph <- layout_graph(alpha_pairs)
+
+vect <- map_chr(1:nrow(alpha_pairs_graph), 
+                function(x){ All_CDR3 %>% filter(CDR3==alpha_pairs_graph$cdr3aa[x]) %>% 
+                    pull(Epitope) %>% 
+                    as.character() %>%
+                    .[1] })
+
+clrs <- hue_pal()(6)
+names(clrs) <- c("DPF", "GLI", "GMF",  "PKY", "QAR", "SGP")
+
+alpha_pairs_graph %>% add_column("Epitope"=vect) %>%
+  ggplot(aes(x = x, y = y, color = Epitope)) +
+  geom_point(alpha = 0.9, size = 1) +
+  xlab("MDS1") + ylab("MDS2") +
+  scale_size(guide = F) +
+  scale_color_manual(values = clrs) +
+  facet_wrap(~Epitope, ncol = 3)
+
+ggsave(plot = last_plot(), filename = "../output/point.png", height = 6, width = 10)
+
+```
+
+
+```{R Network Diagrams, include=TRUE, echo=TRUE, eval = TRUE, fig.height=6, fig.width=8}
+
+align_seqs <- function(seqs, cons = F) {
+  x <- seqs %>% AAStringSet %>% msa(method = "ClustalW")
+  
+  if (cons) {
+    return(msaConsensusSequence(.x))
+  } else {
+    return(x %>% 
+             as.matrix %>%
+             reshape2::melt() %>% 
+             mutate(seq_id = Var1, base_id = Var2, aa = value) %>%
+             select(-Var1, -Var2, -value) %>%
+             group_by(seq_id) %>%
+             mutate(seq = paste0(aa[base_id], collapse = "")) %>%
+             ungroup)
+  }
+}
+
+plot_seqgrid <- function(seqs) {
+  seqs %>%
+    align_seqs %>%
+    ggplot(aes(x=base_id, y=seq_id)) +
+    geom_text(aes(label=aa), size = 3) + 
+    scale_x_continuous("", breaks = c(), 
+                       expand = c(0.105, 0)) +
+    theme_logo() + 
+    theme(legend.position = 'none')
+}
+
+# plots graph using igraph
+alpha_pairs %>%
+  select(to.cdr3, from.cdr3) %>%
+  unique %>%
+  as.matrix %>%
+  network -> nn
+
+nn %v% "group" <- vect
+
+library(scales)
+
+clrs <- hue_pal()(6)
+names(clrs) <- c("DPF", "GLI", "GMF",  "PKY", "QAR", "SGP")
+
+nn %>% ggnet2(size = 3, legend.position = "right", 
+              color = "group",
+              color.palette = clrs
+              )
+
+ggsave(plot = last_plot(), filename = "../output/net.png", height = 6, width = 8)
+
+
+```

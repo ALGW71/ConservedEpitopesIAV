@@ -1,0 +1,448 @@
+---
+title: "MEME, GLAM2, and Phylogenetic Analysis of CDR3 Sequences"
+author: "AlexGW"
+date: "19 December 2019"
+output: html_document
+---
+
+Load up the packages and set root directory.
+
+```{r setup_data_packages, eval=TRUE, echo=TRUE, error=TRUE, message=FALSE, cache=FALSE}
+
+library(knitr)
+library(tidyverse)
+library(stringr)
+library(xlsx)
+library(tcR)
+library(ggseqlogo)
+library(stringr)
+library(Biostrings)
+library(alakazam)
+library(muscle)
+library(phylogram)
+library(ape)
+library(seqinr)
+library(png)
+library(gridExtra)
+library(grid)
+
+opts_knit$set(root.dir = "~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+setwd("~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+
+#opts_knit$set(root.dir = "C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+#setwd("C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+
+```
+
+Load in the TCR sequence files from your other project directory.
+
+```{R Read in TCR Sequences, include=TRUE, echo=TRUE, eval = TRUE, warnings=F, message=F}
+
+#opts_knit$set(root.dir = "C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+#setwd("C:/Users/Green/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
+
+opts_knit$set(root.dir = "~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+setwd("~/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
+
+TCR_file_names <- dir("../input/", recursive = TRUE)
+listof_TCR_samples <- list()
+for (i in 1:length(TCR_file_names)){
+  
+  listof_TCR_samples[[i]] <- read.csv(file = paste("../input/", 
+                                                   TCR_file_names[i], sep = ""), 
+                                      header = TRUE, 
+                                      stringsAsFactors = FALSE)
+}
+
+TCR_file_names <- sub(pattern = "_\\d{4}\\.csv", 
+                      replacement = "", TCR_file_names)
+names(listof_TCR_samples) <- TCR_file_names
+TCR_file_names <- lapply(TCR_file_names, FUN = toupper )
+
+flu_seqs <- list()
+for (i in 1:length(listof_TCR_samples)){
+  
+  flu_seqs[[i]] <- list("Read.count" =listof_TCR_samples[[i]]$Clone.count,
+                        "Read.proportion" = list(),
+                        "V.gene"= listof_TCR_samples[[i]]$All.V.hits,
+                        "J.gene"= listof_TCR_samples[[i]]$All.J.hits,
+                        "CDR3.amino.acid.sequence"= listof_TCR_samples[[i]]$AA..Seq..CDR3)
+  
+  flu_seqs[[i]]$Read.proportion <- (flu_seqs[[i]]$Read.count)/sum(flu_seqs[[i]]$Read.count)
+}  
+remove(listof_TCR_samples)
+names(flu_seqs) <- TCR_file_names
+
+for (i in 1:length(flu_seqs)){
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "\\*00.*", 
+                               replacement = "", flu_seqs[[i]]$V.gene) 
+  # this is quite important, it removes the least probable V.gene alignment
+  # \\ means it escapes *, and looks for that exact character in the string
+  # then is finds the 00. and now uses . followed by * as the ANY CHARACTER (.), any number of times behind this (*)
+  
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV14DV4", 
+                               replacement = "TRAV14/DV4", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV23DV6", 
+                               replacement = "TRAV23/DV6", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV29DV5", 
+                               replacement = "TRAV29/DV5", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV36DV7", 
+                               replacement = "TRAV36/DV7", flu_seqs[[i]]$V.gene)
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV38-2DV8", 
+                               replacement = "TRAV38-2/DV8", flu_seqs[[i]]$V.gene)
+  
+  flu_seqs[[i]]$J.gene <- gsub(pattern = "\\*00.*", replacement = "", flu_seqs[[i]]$J.gene)
+}
+
+# Build the dataframes of Alpha sequences and Beta sequences for analysis.
+
+Alpha_df <- NULL
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>% 
+  unlist(use.names = F) %>% tibble("CDR3" =.) -> Alpha_df 
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "V.gene") %>% unlist(use.names = F) -> Alpha_df$V.gene
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "J.gene") %>% unlist(use.names = F) -> Alpha_df$J.gene
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>% 
+  unlist(use.names = T, recursive = F) %>% names() -> Alpha_df$DONOR
+
+Alpha_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Alpha_df
+Alpha_df$EPITOPE <- gsub('[0-9]+', '', Alpha_df$EPITOPE)
+
+###
+
+Beta_df <- NULL
+flu_seqs[grep("BETA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>% 
+  unlist(use.names = F) %>% tibble("CDR3" =.) -> Beta_df 
+flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "V.gene") %>% unlist(use.names = F) -> Beta_df$V.gene
+flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "J.gene") %>% unlist(use.names = F) -> Beta_df$J.geneJ
+flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>% 
+  unlist(use.names = T, recursive = F) %>% names() -> Beta_df$DONOR
+
+Beta_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Beta_df
+Beta_df$EPITOPE <- gsub('[0-9]+', '', Beta_df$EPITOPE)
+
+setwd("~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin") # Return to this project directory.
+
+# write a function that allows you to loop over your TCR-CDR3 sequences by epitope, and make fasta files for analysis by MEME/GLAM
+make_fasta <- function(df, epi){ df %>%
+    filter(EPITOPE == epi) %>%
+    select(CDR3) %>% 
+    pull %>%
+    purrr::map(., function(x){ 
+      endlen <- nchar(x)-1 # end length removes the final F
+      base::substr(x, start=2, stop=endlen)}  # remove the starting C
+    ) %>% as.character %>%
+    { (.)[!nchar(.)<8] } %>% # Need to remove all sequences less than 8 character
+    as.list() %>% {
+      write.fasta( # write fasta to output
+      sequences = (.),
+      as.string = FALSE, 
+      names = 1:length(.),  
+      file.out = paste0("../output/fasta/", epi, ".fa")
+    )}
+}
+
+# Loop over and make fasta files for each epitope.
+for(i in (table(Alpha_df$EPITOPE)%>% names())){
+  make_fasta(Alpha_df, epi = i)
+}
+
+for(i in (table(Beta_df$EPITOPE)%>% names())){
+  make_fasta(Beta_df, epi = i)
+}
+
+# To run discriminative mode you need to use a background file.
+# I will make one for the alpha chains and one for the beta chains.
+
+make_fasta_all <- function(df, name){  df %>%
+    select(CDR3) %>%
+    pull %>% 
+    purrr::map(., function(x){ 
+      endlen <- nchar(x)-1 # end length removes the final F
+      base::substr(x, start=2, stop=endlen)}  # remove the starting C
+    ) %>% as.character %>%
+    { (.)[!nchar(.)<8] } %>% # Need to remove all sequences less than 8 characters
+    as.list() %>% {
+      write.fasta( # write fasta to output
+      sequences = (.),
+      as.string = FALSE, 
+      names = 1:length(.),  
+      file.out = paste0("../output/fasta/", name, "_all.fa")
+    )}
+}
+
+make_fasta_all(df = Alpha_df, "Alpha")
+make_fasta_all(df = Beta_df, "Beta")
+
+# Need to remove all sequences less than 8 characters
+
+
+```
+\
+\
+*Use MEME and GLAM2 on the fasta files created above to find motifs*
+\
+Take all the fasta files and run through MEME in three formats.
+\
+1. MEME in default mode.
+\
+2. MEME in discriminative mode.
+\
+3. GLAM2 with high iteration to get the motif of the highest probability.
+
+
+Run these commands on the system using command line arguements in bash.
+\
+Use parallel.
+\
+Now loop through all the files.
+
+```{bash Looping MEME Over FASTA files, eval=FALSE, echo=T}
+
+cd /home/alexgw/meme/bin
+### MEME Default mode ###
+for filename in /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/*.fa;  
+do 
+f="$(basename "$filename" .fa)"
+./meme "$filename" -oc /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/meme_default/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -maxiter 5000 -distance 0.001 -evt 0.05 -mod oops
+done
+
+### Add neg for discriminative mode - SELECTIVE DE
+for filename in /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/*_ALPHA.fa; do
+f="$(basename "$filename" .fa)"
+./meme "$filename" -objfun se  -oc /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/meme_discriminative_mode/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -neg /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/Alpha_all.fa -maxiter 1000 -distance 0.001 -evt 0.05 -mod oops
+done
+
+for filename in /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/*_BETA.fa; do
+f="$(basename "$filename" .fa)"
+./meme "$filename" -objfun se -oc /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/meme_discriminative_mode/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -neg /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/Beta_all.fa -maxiter 1000 -distance 0.001 -evt 0.05 -mod oops
+done
+```
+\
+\
+Run GLAM2 in Parallel
+\
+```{bash Looping GLAM2 Over FASTA files, eval=FALSE, echo=T}
+cd /home/alexgw/meme/bin
+### Try GLAM2 ###
+parallel -j 6 './glam2 p -a 6 -b 15 -z 10 -r 4 -n 150000 {} -O /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/glam2_default/{/.} ' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/*.fa
+
+```
+\
+\
+Place these outputs into figures.
+\
+```{R Using Grid to Make Figures, eval=TRUE, echo=TRUE, error=FALSE, message=FALSE, fig.height=28, fig.width=20}
+
+# SETUP LIST OF Names hat pmap will map over
+f1 <- dir("../output/meme_default/", recursive = F) 
+f1 <- f1[-grep("_all",f1)]
+
+f1 <- f1[ order(match(f1, c("SGP_ALPHA", "GLI_ALPHA", "QAR_ALPHA", "DPF_ALPHA", "GMF_ALPHA", "PKY_ALPHA",
+                            "SGP_BETA", "GLI_BETA", "QAR_BETA", "DPF_BETA", "GMF_BETA", "PKY_BETA"))) ]
+f1 <- as.list(f1)
+
+
+### USE textGrob() to add text to the files?
+
+# MEME DEFAULT
+r1 <- purrr::map(f1, #create list of png files by mapping over the f1 folder name list in order
+                 function(x){
+                   readPNG(source=paste0("../output/meme_default/", x, "/logo1.png")
+                   )
+                 })
+
+g1 <- lapply(r1, grid::rasterGrob) # render the raster object
+
+grid.newpage()
+meme_def <- marrangeGrob(grobs=g1, ncol =2, nrow = 6, top = "MEME Analysis of CDR3 Sequences")
+ggsave(filename = "../output/meme_df.png", plot = meme_def, width = 21, height = 29, dpi = 500, units = "cm")
+meme_def
+
+# Repeat for GLAM2
+r1 <- purrr::map(f1, 
+                 function(x){
+                   readPNG(source=paste0("../output/glam2_default/", x, "/logo1.png")
+                   )
+                 })
+g1 <- lapply(r1, grid::rasterGrob) # render the raster object
+grid.newpage()
+glam_def <- marrangeGrob(grobs=g1, ncol =2, nrow = 6, top = "GLAM2 Analysis of CDR3 Sequences")
+ggsave(filename = "../output/glam_df.png", plot = glam_def, width = 21, height = 29, dpi = 500, units = "cm")
+glam_def
+
+```
+\
+\
+Now we can try to copy Roy Mariuzza's Cell Reports paper and look at the phylogenetic trees.
+Cell Reports 2017 - FIGURE 4
+\
+Sequence and Structural Analyses Reveal Distinctand Highly Diverse Human CD8+TCR Repertoires to Immunodominant Viral Antigens
+Guobing Chen, Xinbo Yang,Annette Ko, ..., Alvin Shi, Roy A. Mariuzza,Nan-ping Weng
+\
+```{r Phylo_Trees, eval=FALSE, echo=TRUE, error=FALSE, message=FALSE, cache=FALSE, fig.height=28, fig.width=20}
+
+# fxn to pull out sequences ready to be processed by muscle
+get_muscle <- function(df, epi){df %>%
+    filter(EPITOPE == epi) %>%
+    select(CDR3) %>% 
+    pull() %>%
+    purrr::map(., function(x){ 
+      endlen <- nchar(x)-1 # end length removes the final F
+      base::substr(x, start=2, stop=endlen)}  # remove the starting C
+    ) %>% as.character %>%
+    { (.)[!nchar(.)<8] } %>% # Need to remove all sequences less than 8 characters
+    as.character %>% AAStringSet()
+}
+
+
+get_muscle(Alpha_df, "GLI_ALPHA")
+
+# fxn to get the corresponding sequences in normal form subsetting then visualise using GLAM2
+get_sequences <- function(df, epi){df %>%
+    filter(EPITOPE == epi) %>%
+    select(CDR3) %>% 
+    pull() %>%
+    purrr::map(., function(x){ 
+      endlen <- nchar(x)-1 # end length removes the final F
+      base::substr(x, start=2, stop=endlen)}  # remove the starting C
+    ) %>% as.character %>%
+    { (.)[!nchar(.)<8] } %>% # Need to remove all sequences less than 8 characters
+    as.character()
+}
+
+get_sequences(Alpha_df, "GLI_ALPHA")
+
+# make a tibble that you can pmap the functions over
+tib_for_map <- tibble("correct_df"= c(rep("Alpha_df", 6), rep("Beta_df", 6)), 
+                      "epi_name"= as.character(f1) ) 
+
+purrr::pmap(tib_for_map, function(correct_df, epi_name){
+  
+  hello <- get_muscle(get(correct_df), epi_name) # seqs for muscle
+  
+  out <- get_sequences(get(correct_df), epi_name) # corresponding seqs for subset and analysis by glam2
+  
+  muscle::muscle(hello, tree1="tree.out", cluster="neighborjoining", maxiters="100") # Run Muscle and extract the tree
+  
+  # tree2 corresponds to iteration 2
+  
+  x <- read.tree(file = "tree.out") %>% ladderize() 
+  
+  #colour each tip label by cutree
+  dm <- cophenetic.phylo(x)  # this allows it to be read by hclust
+  
+  # Is it correct to use cophenetic.phylo?
+  
+  single <- hclust(as.dist(dm), method="complete")
+  cutSingle <- cutree(single, k=4) # cut the tree
+  
+  colors_phy <-  recode(cutSingle, `1`="red",`2`="blue", `3`="green", `4`="yellow") %>% as.vector() # color each cluster
+  names(colors_phy) <- cutSingle %>% names()
+  
+  #take the four major sub groups and plot seq logos - look for Motifs using MEME
+    for (nX in 1:4){
+    cutSingle[cutSingle==nX]%>%names() %>% #get the member of cut tree
+      as.integer() %>% 
+      {out[.]} %>%  # subset out the sequences
+      as.list() %>% {
+        seqinr::write.fasta(sequences = ., 
+                            names = 1:length(.), 
+                            file.out = paste0("../output/phylo/", epi_name, as.character(nX), ".fa")) }
+  }
+  
+  ###
+  
+  png(filename = paste0("../output/phylo/", epi_name, "_unr.png"), 
+      width = 15, height = 15, units = "cm", res = 300)
+  plot.phylo(x,
+             use.edge.length = T,
+             type="unrooted",
+             lab4ut = "axial",
+             tip.color = as.character(colors_phy),
+             edge.width = 1.5,
+             root.edge = F,
+             font = 1,
+             cex = 1,
+             no.margin = T,
+             show.node.label = F,
+             node.depth = 1,
+             show.tip.label = T)
+  dev.off()
+  
+  
+  png(filename = paste0("../output/phylo/", epi_name, "_phylo.png"), 
+      width = 20, height = 10, units = "cm", res = 300)
+  plot.phylo(x,
+             use.edge.length = T,
+             type="phylogram",
+             tip.color = as.character(colors_phy),
+             edge.width = 1.5,
+             root.edge = T,
+             font = 1,
+             adj = 1,
+             cex = 1,
+             no.margin = T,
+             show.node.label = F,
+             node.depth = 1,
+             show.tip.label = T,
+             align.tip.label = F,
+             x.lim = 10 #, y.lim = 150
+  )
+  axisPhylo(side = 1, backward = T, lwd =1.5, tick = T, col = "black", outer = F)
+  axisPhylo(side = 2, backward = T, lwd =1.5, tick = T, col = "black", outer = F)
+  
+  dev.off()
+} # end pmap function here
+) # end pmap
+
+```
+\
+\
+Visualise outputs
+\
+```{R Trees, eval=TRUE, echo=TRUE, error=FALSE, message=FALSE, fig.height=28, fig.width=20}
+
+
+r1 <- purrr::map(f1, #create list using map
+                 function(x){
+                   readPNG(source=paste0("../output/phylo/", x, "_unr.png")
+                   )
+                 })
+g1 <- lapply(r1, grid::rasterGrob) # render the raster object
+grid.newpage()
+meme_def <- marrangeGrob(grobs=g1, 
+                         ncol =2, nrow = 6, 
+                         top = NULL)
+ggsave(filename = "../output/phylo_unr.png", 
+       plot = meme_def, width = 21, height = 29, dpi = 500, units = "cm")
+
+meme_def
+
+# GLAM2
+r1 <- purrr::map(f1, #create list using map
+                 function(x){
+                   readPNG(source=paste0("../output/phylo/", x, "_phylo.png")
+                   )
+                 })
+g1 <- lapply(r1, grid::rasterGrob) # render the raster object
+grid.newpage()
+glam_def <- marrangeGrob(grobs=g1, 
+                         ncol =2, nrow = 6, 
+                         top = NULL,
+                         vp = viewport(width = 1, height = 0.95))
+ggsave(filename = "../output/phylo.png", 
+       plot = glam_def, width = 21, height = 29, dpi = 500, units = "cm")
+
+glam_def
+
+```
+\
+\
+* Now run GLAM2 on the cut tree output fasta files...
+\
+```{bash parallel, eval=FALSE, echo=FALSE, echo=T}
+
+cd /home/alexgw/meme/bin
+parallel -j 6 './glam2 p -a 6 -b 15 -z 10 -r 4 -n 150000 {} -O {.} ' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/phylo/*.fa
+```
+

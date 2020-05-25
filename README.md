@@ -1,6 +1,6 @@
 ### CD4+ T cells Recognise Conserved Influenza-A Epitopes through Shared Patterns of V-gene Usage and Complementary Biochemical Features
 
-#### Greenshields et al. 2020
+#### Greenshields-Watson et al. 2020
 
 The R Markdown files in this repository were created to analyse data and generate figures used in the publication. To run this code you will need to install the various tools from the command line. Links are included in each section. The raw TCR seq data is available from: vdjdb.net. Various raw data files (conservation analysis, in vivo data and ) are included in the input folder
 
