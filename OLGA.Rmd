@@ -9,7 +9,7 @@ OLGA calculates the likelihood of generating a given CDR3 amino acid sequence wi
 
 ```{bash, test OLGA publics}
 
-cd /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data
+cd ../03_TCR_seq_data
 
 olga-compute_pgen --humanTRA CAATRRGADGLTF
 olga-compute_pgen --humanTRA CAASSRIYNQGGKLIF
@@ -35,21 +35,13 @@ library(seqinr)
 library(magrittr)
 library(ggpubr)
 
-opts_knit$set(root.dir = "~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-setwd("~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+opts_knit$set(root.dir = "~/03_TCR_seq_data/bin")
+setwd("~/03_TCR_seq_data/bin")
 
-#opts_knit$set(root.dir = "C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-#setwd("C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
 
 ```
 
 ```{R Read in TCR Sequences, include=TRUE, echo=FALSE, eval = TRUE}
-
-#opts_knit$set(root.dir = "C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-#setwd("C:/Users/Green/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
-
-opts_knit$set(root.dir = "~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-setwd("~/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
 
 TCR_file_names <- dir("../input/", recursive = TRUE)
 listof_TCR_samples <- list()
@@ -214,8 +206,8 @@ for (j in 1:nrow(Enriched_V)) {
   }
 }
 
-setwd("~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin") # Return to this project directory.
-#setwd("C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+setwd("~/03_TCR_seq_data/bin") # Return to this project directory.
+#setwd("C:/Users/Green/03_TCR_seq_data/bin")
 
 # write a function that allows you to loop over your TCR-CDR3 sequences by epitope, and make fasta files for analysis by MEME/GLAM
 make_fasta <- function(df, epi){ df %>%
@@ -267,14 +259,14 @@ make_fasta_all(df = Beta_df, "Beta")
 
 ```{bash, OLGA 1, eval = FALSE}
 
-cd /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/
+cd /03_TCR_seq_data/olga/
 
 rm *NOMASK.out
 
 # Start by doing this for just the CDR3, worry about VJ usage later...
-parallel -j 6 'olga-compute_pgen -i {} --humanTRA -o {/.}_NOMASK.out' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/fasta/Alpha_all.tsv
+parallel -j 6 'olga-compute_pgen -i {} --humanTRA -o {/.}_NOMASK.out' ::: /03_TCR_seq_data/olga/fasta/Alpha_all.tsv
 
-parallel -j 6 'olga-compute_pgen -i {} --humanTRB -o {/.}_NOMASK.out' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/fasta/Beta_all.tsv
+parallel -j 6 'olga-compute_pgen -i {} --humanTRB -o {/.}_NOMASK.out' ::: /03_TCR_seq_data/olga/fasta/Beta_all.tsv
 
 
 ```
@@ -282,13 +274,13 @@ parallel -j 6 'olga-compute_pgen -i {} --humanTRB -o {/.}_NOMASK.out' ::: /home/
 
 ```{bash, test OLGA, eval = FALSE}
 
-cd /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/
+cd /03_TCR_seq_data/olga/
 
 rm *VJ.out # get rid of all previous files
 
-parallel -j 6 'olga-compute_pgen -i {} --humanTRA --v_in 1 --j_in 2 -o {/.}_VJ.out' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/fasta/Alpha_all.tsv
+parallel -j 6 'olga-compute_pgen -i {} --humanTRA --v_in 1 --j_in 2 -o {/.}_VJ.out' ::: /03_TCR_seq_data/olga/fasta/Alpha_all.tsv
 
-parallel -j 6 'olga-compute_pgen -i {} --humanTRB --v_in 1 --j_in 2 -o {/.}_VJ.out' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/olga/fasta/Beta_all.tsv
+parallel -j 6 'olga-compute_pgen -i {} --humanTRB --v_in 1 --j_in 2 -o {/.}_VJ.out' ::: /03_TCR_seq_data/olga/fasta/Beta_all.tsv
 
 ```
 

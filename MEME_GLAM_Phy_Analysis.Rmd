@@ -26,11 +26,7 @@ library(png)
 library(gridExtra)
 library(grid)
 
-opts_knit$set(root.dir = "~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-setwd("~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-
-#opts_knit$set(root.dir = "C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-#setwd("C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
+setwd("~/03_TCR_seq_data/bin")
 
 ```
 
@@ -38,11 +34,6 @@ Load in the TCR sequence files from your other project directory.
 
 ```{R Read in TCR Sequences, include=TRUE, echo=TRUE, eval = TRUE, warnings=F, message=F}
 
-#opts_knit$set(root.dir = "C:/Users/Green/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-#setwd("C:/Users/Green/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
-
-opts_knit$set(root.dir = "~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin")
-setwd("~/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
 
 TCR_file_names <- dir("../input/", recursive = TRUE)
 listof_TCR_samples <- list()
@@ -120,7 +111,6 @@ flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequ
 Beta_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Beta_df
 Beta_df$EPITOPE <- gsub('[0-9]+', '', Beta_df$EPITOPE)
 
-setwd("~/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/bin") # Return to this project directory.
 
 # write a function that allows you to loop over your TCR-CDR3 sequences by epitope, and make fasta files for analysis by MEME/GLAM
 make_fasta <- function(df, epi){ df %>%
@@ -198,23 +188,23 @@ Now loop through all the files.
 
 ```{bash Looping MEME Over FASTA files, eval=FALSE, echo=T}
 
-cd /home/alexgw/meme/bin
+cd /home/03_TCR_seq_data.bin
 ### MEME Default mode ###
-for filename in /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/*.fa;  
+for filename in /home/03_TCR_seq_data/output/fasta/*.fa;  
 do 
 f="$(basename "$filename" .fa)"
-./meme "$filename" -oc /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/meme_default/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -maxiter 5000 -distance 0.001 -evt 0.05 -mod oops
+./meme "$filename" -oc /home/03_TCR_seq_data/output/meme_default/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -maxiter 5000 -distance 0.001 -evt 0.05 -mod oops
 done
 
 ### Add neg for discriminative mode - SELECTIVE DE
-for filename in /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/*_ALPHA.fa; do
+for filename in /home/03_TCR_seq_data/output/fasta/*_ALPHA.fa; do
 f="$(basename "$filename" .fa)"
-./meme "$filename" -objfun se  -oc /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/meme_discriminative_mode/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -neg /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/Alpha_all.fa -maxiter 1000 -distance 0.001 -evt 0.05 -mod oops
+./meme "$filename" -objfun se  -oc /home/03_TCR_seq_data/output/meme_discriminative_mode/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -neg /home/03_TCR_seq_data/output/fasta/Alpha_all.fa -maxiter 1000 -distance 0.001 -evt 0.05 -mod oops
 done
 
-for filename in /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/*_BETA.fa; do
+for filename in /home/03_TCR_seq_data/output/fasta/*_BETA.fa; do
 f="$(basename "$filename" .fa)"
-./meme "$filename" -objfun se -oc /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/meme_discriminative_mode/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -neg /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/Beta_all.fa -maxiter 1000 -distance 0.001 -evt 0.05 -mod oops
+./meme "$filename" -objfun se -oc /home/03_TCR_seq_data/output/meme_discriminative_mode/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -neg /home/03_TCR_seq_data/output/fasta/Beta_all.fa -maxiter 1000 -distance 0.001 -evt 0.05 -mod oops
 done
 ```
 \
@@ -222,9 +212,9 @@ done
 Run GLAM2 in Parallel
 \
 ```{bash Looping GLAM2 Over FASTA files, eval=FALSE, echo=T}
-cd /home/alexgw/meme/bin
+cd /home/03_TCR_seq_data/meme/bin
 ### Try GLAM2 ###
-parallel -j 6 './glam2 p -a 6 -b 15 -z 10 -r 4 -n 150000 {} -O /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/glam2_default/{/.} ' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/fasta/*.fa
+parallel -j 6 './glam2 p -a 6 -b 15 -z 10 -r 4 -n 150000 {} -O /home/03_TCR_seq_data/output/glam2_default/{/.} ' ::: /home/03_TCR_seq_data/output/fasta/*.fa
 
 ```
 \
@@ -442,7 +432,7 @@ glam_def
 \
 ```{bash parallel, eval=FALSE, echo=FALSE, echo=T}
 
-cd /home/alexgw/meme/bin
-parallel -j 6 './glam2 p -a 6 -b 15 -z 10 -r 4 -n 150000 {} -O {.} ' ::: /home/alexgw/Dropbox/POSTDOC/Paper-CD4Flu/03_TCR_seq_data/output/phylo/*.fa
+cd /home/03_TCR_seq_data/meme/bin
+parallel -j 6 './glam2 p -a 6 -b 15 -z 10 -r 4 -n 150000 {} -O {.} ' ::: /home/03_TCR_seq_data/output/phylo/*.fa
 ```
 
