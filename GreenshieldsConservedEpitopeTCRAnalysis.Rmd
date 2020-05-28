@@ -17,8 +17,7 @@ library(tidyverse)
 library(tcR)
 library(ggpubr)
 
-setwd("C:/Users/Green/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
-#setwd("~/Dropbox/POSTDOC/Influenza_Paper/003_R_analysis_2018/bin/")
+setwd("~/003_R_analysis_2018/bin/")
 
 TCR_file_names <- dir("../input/", recursive = TRUE)
 
