@@ -1008,9 +1008,7 @@ write.csv(public_df, file = "../output/publics.csv")
 
 # Problem here at ALPHA...
 
-# You dont have all the data from all donors...
-
-# Gonna need a whole new script.
+# You dont have all the repeat data from all donors included above...
 
 ```
 

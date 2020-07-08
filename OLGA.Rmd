@@ -46,61 +46,61 @@ setwd("~/03_TCR_seq_data/bin")
 TCR_file_names <- dir("../input/", recursive = TRUE)
 listof_TCR_samples <- list()
 for (i in 1:length(TCR_file_names)){
-  
-  listof_TCR_samples[[i]] <- read.csv(file = paste("../input/", 
-                                                   TCR_file_names[i], sep = ""), 
-                                      header = TRUE, 
+
+  listof_TCR_samples[[i]] <- read.csv(file = paste("../input/",
+                                                   TCR_file_names[i], sep = ""),
+                                      header = TRUE,
                                       stringsAsFactors = FALSE)
 }
 
-TCR_file_names <- sub(pattern = "_\\d{4}\\.csv", 
+TCR_file_names <- sub(pattern = "_\\d{4}\\.csv",
                       replacement = "", TCR_file_names)
 names(listof_TCR_samples) <- TCR_file_names
 TCR_file_names <- lapply(TCR_file_names, FUN = toupper )
 
 flu_seqs <- list()
 for (i in 1:length(listof_TCR_samples)){
-  
+
   flu_seqs[[i]] <- list("Read.count" =listof_TCR_samples[[i]]$Clone.count,
                         "Read.proportion" = list(),
                         "V.gene"= listof_TCR_samples[[i]]$All.V.hits,
                         "J.gene"= listof_TCR_samples[[i]]$All.J.hits,
                         "CDR3.amino.acid.sequence"= listof_TCR_samples[[i]]$AA..Seq..CDR3)
-  
+
   flu_seqs[[i]]$Read.proportion <- (flu_seqs[[i]]$Read.count)/sum(flu_seqs[[i]]$Read.count)
-}  
+}
 remove(listof_TCR_samples)
 names(flu_seqs) <- TCR_file_names
 
 for (i in 1:length(flu_seqs)){
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "\\*00.*", 
-                               replacement = "", flu_seqs[[i]]$V.gene) 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "\\*00.*",
+                               replacement = "", flu_seqs[[i]]$V.gene)
   # this is quite important, it removes the least probable V.gene alignment
   # \\ means it escapes *, and looks for that exact character in the string
   # then is finds the 00. and now uses . followed by * as the ANY CHARACTER (.), any number of times behind this (*)
-  
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV14DV4", 
+
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV14DV4",
                                replacement = "TRAV14/DV4", flu_seqs[[i]]$V.gene)
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV23DV6", 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV23DV6",
                                replacement = "TRAV23/DV6", flu_seqs[[i]]$V.gene)
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV29DV5", 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV29DV5",
                                replacement = "TRAV29/DV5", flu_seqs[[i]]$V.gene)
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV36DV7", 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV36DV7",
                                replacement = "TRAV36/DV7", flu_seqs[[i]]$V.gene)
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV38-2DV8", 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV38-2DV8",
                                replacement = "TRAV38-2/DV8", flu_seqs[[i]]$V.gene)
-  
+
   flu_seqs[[i]]$J.gene <- gsub(pattern = "\\*00.*", replacement = "", flu_seqs[[i]]$J.gene)
 }
 
 # Build the dataframes of Alpha sequences and Beta sequences for analysis.
 
 Alpha_df <- NULL
-flu_seqs[grep("ALPHA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>% 
-  unlist(use.names = F) %>% tibble("CDR3" =.) -> Alpha_df 
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>%
+  unlist(use.names = F) %>% tibble("CDR3" =.) -> Alpha_df
 flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "V.gene") %>% unlist(use.names = F) -> Alpha_df$V.gene
 flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "J.gene") %>% unlist(use.names = F) -> Alpha_df$J.gene
-flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>% 
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>%
   unlist(use.names = T, recursive = F) %>% names() -> Alpha_df$DONOR
 
 Alpha_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Alpha_df
@@ -110,11 +110,11 @@ Alpha_df$EPITOPE <- gsub('_ALPHA', '', Alpha_df$EPITOPE)
 ###
 
 Beta_df <- NULL
-flu_seqs[grep("BETA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>% 
-  unlist(use.names = F) %>% tibble("CDR3" =.) -> Beta_df 
+flu_seqs[grep("BETA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>%
+  unlist(use.names = F) %>% tibble("CDR3" =.) -> Beta_df
 flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "V.gene") %>% unlist(use.names = F) -> Beta_df$V.gene
 flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "J.gene") %>% unlist(use.names = F) -> Beta_df$J.gene
-flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>% 
+flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>%
   unlist(use.names = T, recursive = F) %>% names() -> Beta_df$DONOR
 
 Beta_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Beta_df
@@ -142,15 +142,13 @@ fxn_dominance(Beta_df)
 #
 #
 # Highlight the public TCR sequences
-public_alpha <- c('CAATRRGADGLTF', 'CAASSRIYNQGGKLIF', 'CAENNKGTSYGKLTF', 'CAENIRNARLMF',
-                  'CALREANTGNQFYF', 'CALRTGNQFYF', 'CAFMRYNAGNMLTF', 'CAVEVLNSGNTPLVF',
-                  'CAYLAGTASKLTF', 'CAYITGTASKLTF', 'CAYLTGTASKLTF', 'CAYRSTGNQFYF',
-                  'CAVEGDNAGNKLTF', 'CAVEEGSSASKIIF', 'CAASFSDGQKLLF', 'CALSNDYKLSF',
-                  'CAMSATDSWGKLQF', 'CAMSPTDSWGKLQF', 'CLVGDMNSGYSTLTF', 'CAVSEDTDKLIF')
+library(readxl)
 
-public_beta <- c('CASSSPSGGAPYNEQFF', 'CSARDLQGAYNSPLHF', 'CSARDLQGSYNSPLHF', 
-                 'CSARGLQGDYNSPLHF', 'CSAQDRDSGNTIYF', 'CASSLEGSPSQNTEAFF', 
-                 'CASSPGGSSYEQYF', 'CSARRGGDTQYF', 'CASSVVGAGADTQYF')
+# Highlight the public TCR sequences
+public_alpha <- read_xlsx("../../01_Tables_figures_files/imgt_junction.xlsx",
+                           sheet = "ALPHA") %>%  select(-Donors) %>% pull(CDR3) %>% unique
+public_beta <- read_xlsx("../../01_Tables_figures_files/imgt_junction.xlsx", 
+                           sheet = "BETA") %>%  select(-Donors) %>% pull(CDR3) %>% unique
 
 Alpha_df <- Alpha_df %>% add_column(`Public`=NA)
 Beta_df <- Beta_df %>% add_column(`Public`=NA)
@@ -192,7 +190,7 @@ Beta_df <- Beta_df %>% add_column("EnrichedV"=FALSE)
 
 for (j in 1:nrow(Enriched_V)) {
   for (i in 1:nrow(Alpha_df)){
-    if ( 
+    if (
       ((Alpha_df[i,]$V.gene==Enriched_V[j,"y"])&&(Alpha_df[i,]$EPITOPE==Enriched_V[j,"x"]))==TRUE){
       Alpha_df[i, "EnrichedV"]<-TRUE}
   }
@@ -200,7 +198,7 @@ for (j in 1:nrow(Enriched_V)) {
 
 for (j in 1:nrow(Enriched_V)) {
   for (i in 1:nrow(Beta_df)){
-    if ( 
+    if (
       ((Beta_df[i,]$V.gene==Enriched_V[j,"y"])&&(Beta_df[i,]$EPITOPE==Enriched_V[j,"x"]))==TRUE){
       Beta_df[i, "EnrichedV"]<-TRUE}
   }
@@ -217,7 +215,7 @@ make_fasta <- function(df, epi){ df %>%
     as.data.frame() %>%{
       write.table( # write fasta to output
         (.),
-        quote = FALSE, 
+        quote = FALSE,
         sep = "\t",
         col.names = F,
         row.names = F,
@@ -243,7 +241,7 @@ make_fasta_all <- function(df, name){  df %>%
     as.data.frame() %>%{
       write.table( # write fasta to output
         (.),
-        quote = FALSE, 
+        quote = FALSE,
         sep = "\t",
         col.names = F,
         row.names = F,
@@ -291,16 +289,16 @@ Now read in these values and tabulate the averages.
 library(magrittr)
 library(dplyr)
 
-alpha_all_no_mask <- read.table(file = "../olga/Alpha_all_NOMASK.out", header = F, stringsAsFactors = F) %>%  set_colnames(c("CDR3", "pGen")) %>%  
+alpha_all_no_mask <- read.table(file = "../olga/Alpha_all_NOMASK.out", header = F, stringsAsFactors = F) %>%  set_colnames(c("CDR3", "pGen")) %>%
   bind_cols(semi_join(x=Alpha_df, y=., by= "CDR3", keep=T)[2:8]) %>%  as_tibble()
 
-beta_all_no_mask <- read.table(file = "../olga/Beta_all_NOMASK.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>% 
+beta_all_no_mask <- read.table(file = "../olga/Beta_all_NOMASK.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>%
   bind_cols(semi_join(x=Beta_df, y=., by= "CDR3", keep=T)[2:8]) %>%  as_tibble()
 
-alpha_all_vj <- read.table(file = "../olga/Alpha_all_VJ.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>% 
+alpha_all_vj <- read.table(file = "../olga/Alpha_all_VJ.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>%
   bind_cols(semi_join(x=Alpha_df, y=., by= "CDR3", keep=T)[2:8]) %>%  as_tibble()
 
-beta_all_vj <- read.table(file = "../olga/Beta_all_VJ.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>% 
+beta_all_vj <- read.table(file = "../olga/Beta_all_VJ.out", header = F, stringsAsFactors = F) %>% set_colnames(c("CDR3", "pGen")) %>%
   bind_cols(semi_join(x=Beta_df, y=., by= "CDR3", keep=T)[2:8]) %>%  as_tibble()
 
 
@@ -314,7 +312,7 @@ epi_list <- list("SGP", "GLI", "QAR", "DPF", "GMF", "PKY")
 names(epi_list) <- c("SGP", "GLI", "QAR", "DPF", "GMF", "PKY")
 
 
-purrr::map(epi_list, function(i){ 
+purrr::map(epi_list, function(i){
   purrr::map(list_df, function(x){
     table(x %>% filter(EPITOPE==i) %>% {(.$pGen==0)})
   }) # get the number of pGen values equal to zero
@@ -330,7 +328,7 @@ plain <- function(x,...) {
   format(x, ..., scientific = T, digits = 2)
 }
 
-pGen_plot <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE, 
+pGen_plot <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE,
                                                              levels = c("SGP","GLI","QAR","DPF","GMF","PKY")
 )) %>%  # filter(EnrichedV==TRUE) %>%
     group_by(EPITOPE) %>% ggplot(mapping = aes(x = pGen, fill = EPITOPE)) +
@@ -338,11 +336,11 @@ pGen_plot <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE,
     #geom_point() +
     facet_wrap(~EPITOPE, ncol = 1 #scales = "free_y"
     ) +
-    scale_x_continuous(trans='log', #breaks = nums, 
+    scale_x_continuous(trans='log', #breaks = nums,
                        limits = c(1e-16, 1e-04),
-                       labels = plain) + 
-    #scale_x_continuous(trans='log2') + 
-    #ggtitle(name) + 
+                       labels = plain) +
+    #scale_x_continuous(trans='log2') +
+    #ggtitle(name) +
     theme_pubr() +
     theme(legend.position = "none") +
     #geom_density(alpha=0.1, stat = "density") +
@@ -360,22 +358,22 @@ pGen_plot(beta_all_no_mask, name = "CDR3 Beta Recombination Probabilities")
 
 ```{r public fxns}
 
-pGen_EnV <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE, 
+pGen_EnV <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE,
                                                             levels = c("SGP","GLI","QAR","DPF","GMF","PKY")
 )) %>%  # filter(EnrichedV==TRUE) %>%
     group_by(EPITOPE) %>% ggplot(mapping = aes(x = pGen, fill = Dominance)) +
-    scale_x_continuous(trans='log2', #breaks = nums, 
+    scale_x_continuous(trans='log2', #breaks = nums,
                        limits = c(1e-16, 1e-04),
                        labels = plain) +
     theme_pubr() +
-    theme(text = element_text(size=14), 
-          plot.title = element_text(size=14),  
+    theme(text = element_text(size=14),
+          plot.title = element_text(size=14),
           axis.text.y = element_text(size=14),
           axis.title.x = element_blank(),
-          axis.title.y = element_blank(), 
+          axis.title.y = element_blank(),
           axis.text.x = element_text(angle = -45, size=14,
                                      vjust = 0.5, hjust = 0.5)) +
-    ggtitle(name) + 
+    ggtitle(name) +
     geom_density(alpha=0.3) +
     ggsave(filename = paste0("../output/", deparse( substitute(i)), "_dom.png"), dpi=300, height=4, width = 5, device = "png")
 }
@@ -383,28 +381,28 @@ pGen_EnV <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE,
 #pGen_EnV(alpha_all_no_mask, name = "CDR3 Alpha Dominance Comparison")
 #pGen_EnV(beta_all_no_mask, name = "CDR3 Beta Dominance Comparison")
 
-pGen_public <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE, 
+pGen_public <- function(i, name){i %>% mutate(EPITOPE = factor(EPITOPE,
                                                                levels = c("SGP","GLI","QAR","DPF","GMF","PKY")
 )) %>%  # filter(EnrichedV==TRUE) %>%
     group_by(EPITOPE) %>% ggplot() +
     #geom_bar(stat = "count", alpha=0.3, color="black") +
     geom_boxplot(mapping = aes(x = EPITOPE, y = pGen), fill = "black", alpha = 0.1)  +
-    geom_point(mapping = aes(x = EPITOPE, y = pGen, color = Public), 
+    geom_point(mapping = aes(x = EPITOPE, y = pGen, color = Public),
                position = position_dodge(width = 0.25), size =2.5 ) +
     scale_color_manual(values = c("royalblue", "orangered1")) +
     #ggtitle( name ) +
     theme_pubr() +
-    theme(text = element_text(size=14), 
-          plot.title = element_text(size=14),  
+    theme(text = element_text(size=14),
+          plot.title = element_text(size=14),
           axis.text.y = element_text(size=14),
           axis.title.x = element_blank(),
           axis.text.x = element_text(angle = -45, size=14,
                                      vjust = 0.5, hjust = 0.5),
           legend.position = "none",
           legend.title = element_blank()) +
-    scale_y_continuous(trans='log', #breaks = nums, 
+    scale_y_continuous(trans='log', #breaks = nums,
                        limits = c(1e-16, 1e-04),
-                       labels = plain) + 
+                       labels = plain) +
     ylab("log pGen") +
     #coord_flip() +
     ggsave(filename = paste0("../output/", deparse( substitute(i)), "_public.png"), dpi=300, height=5, width = 5, device = "png")

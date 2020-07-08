@@ -38,61 +38,61 @@ Load in the TCR sequence files from your other project directory.
 TCR_file_names <- dir("../input/", recursive = TRUE)
 listof_TCR_samples <- list()
 for (i in 1:length(TCR_file_names)){
-  
-  listof_TCR_samples[[i]] <- read.csv(file = paste("../input/", 
-                                                   TCR_file_names[i], sep = ""), 
-                                      header = TRUE, 
+
+  listof_TCR_samples[[i]] <- read.csv(file = paste("../input/",
+                                                   TCR_file_names[i], sep = ""),
+                                      header = TRUE,
                                       stringsAsFactors = FALSE)
 }
 
-TCR_file_names <- sub(pattern = "_\\d{4}\\.csv", 
+TCR_file_names <- sub(pattern = "_\\d{4}\\.csv",
                       replacement = "", TCR_file_names)
 names(listof_TCR_samples) <- TCR_file_names
 TCR_file_names <- lapply(TCR_file_names, FUN = toupper )
 
 flu_seqs <- list()
 for (i in 1:length(listof_TCR_samples)){
-  
+
   flu_seqs[[i]] <- list("Read.count" =listof_TCR_samples[[i]]$Clone.count,
                         "Read.proportion" = list(),
                         "V.gene"= listof_TCR_samples[[i]]$All.V.hits,
                         "J.gene"= listof_TCR_samples[[i]]$All.J.hits,
                         "CDR3.amino.acid.sequence"= listof_TCR_samples[[i]]$AA..Seq..CDR3)
-  
+
   flu_seqs[[i]]$Read.proportion <- (flu_seqs[[i]]$Read.count)/sum(flu_seqs[[i]]$Read.count)
-}  
+}
 remove(listof_TCR_samples)
 names(flu_seqs) <- TCR_file_names
 
 for (i in 1:length(flu_seqs)){
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "\\*00.*", 
-                               replacement = "", flu_seqs[[i]]$V.gene) 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "\\*00.*",
+                               replacement = "", flu_seqs[[i]]$V.gene)
   # this is quite important, it removes the least probable V.gene alignment
   # \\ means it escapes *, and looks for that exact character in the string
   # then is finds the 00. and now uses . followed by * as the ANY CHARACTER (.), any number of times behind this (*)
-  
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV14DV4", 
+
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV14DV4",
                                replacement = "TRAV14/DV4", flu_seqs[[i]]$V.gene)
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV23DV6", 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV23DV6",
                                replacement = "TRAV23/DV6", flu_seqs[[i]]$V.gene)
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV29DV5", 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV29DV5",
                                replacement = "TRAV29/DV5", flu_seqs[[i]]$V.gene)
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV36DV7", 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV36DV7",
                                replacement = "TRAV36/DV7", flu_seqs[[i]]$V.gene)
-  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV38-2DV8", 
+  flu_seqs[[i]]$V.gene <- gsub(pattern = "TRAV38-2DV8",
                                replacement = "TRAV38-2/DV8", flu_seqs[[i]]$V.gene)
-  
+
   flu_seqs[[i]]$J.gene <- gsub(pattern = "\\*00.*", replacement = "", flu_seqs[[i]]$J.gene)
 }
 
 # Build the dataframes of Alpha sequences and Beta sequences for analysis.
 
 Alpha_df <- NULL
-flu_seqs[grep("ALPHA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>% 
-  unlist(use.names = F) %>% tibble("CDR3" =.) -> Alpha_df 
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>%
+  unlist(use.names = F) %>% tibble("CDR3" =.) -> Alpha_df
 flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "V.gene") %>% unlist(use.names = F) -> Alpha_df$V.gene
 flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "J.gene") %>% unlist(use.names = F) -> Alpha_df$J.gene
-flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>% 
+flu_seqs[grep("ALPHA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>%
   unlist(use.names = T, recursive = F) %>% names() -> Alpha_df$DONOR
 
 Alpha_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Alpha_df
@@ -101,23 +101,23 @@ Alpha_df$EPITOPE <- gsub('[0-9]+', '', Alpha_df$EPITOPE)
 ###
 
 Beta_df <- NULL
-flu_seqs[grep("BETA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>% 
-  unlist(use.names = F) %>% tibble("CDR3" =.) -> Beta_df 
+flu_seqs[grep("BETA", names(flu_seqs))] %>% purrr::map(., "CDR3.amino.acid.sequence") %>%
+  unlist(use.names = F) %>% tibble("CDR3" =.) -> Beta_df
 flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "V.gene") %>% unlist(use.names = F) -> Beta_df$V.gene
 flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "J.gene") %>% unlist(use.names = F) -> Beta_df$J.geneJ
-flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>% 
+flu_seqs[grep("BETA", names(flu_seqs))] %>%  purrr::map(., "CDR3.amino.acid.sequence") %>%
   unlist(use.names = T, recursive = F) %>% names() -> Beta_df$DONOR
 
 Beta_df %>% separate(DONOR, sep = "/", remove = T, into = c("DONOR", "EPITOPE") ) -> Beta_df
 Beta_df$EPITOPE <- gsub('[0-9]+', '', Beta_df$EPITOPE)
 
 
-# write a function that allows you to loop over your TCR-CDR3 sequences by epitope, and make fasta files for analysis by MEME/GLAM
+# write a function that allows you to loop over your TCR-CDR3 sequences by epitope, and make fasta files for analysis by GLAM
 make_fasta <- function(df, epi){ df %>%
     filter(EPITOPE == epi) %>%
-    select(CDR3) %>% 
+    select(CDR3) %>%
     pull %>%
-    purrr::map(., function(x){ 
+    purrr::map(., function(x){
       endlen <- nchar(x)-1 # end length removes the final F
       base::substr(x, start=2, stop=endlen)}  # remove the starting C
     ) %>% as.character %>%
@@ -125,8 +125,8 @@ make_fasta <- function(df, epi){ df %>%
     as.list() %>% {
       write.fasta( # write fasta to output
       sequences = (.),
-      as.string = FALSE, 
-      names = 1:length(.),  
+      as.string = FALSE,
+      names = 1:length(.),
       file.out = paste0("../output/fasta/", epi, ".fa")
     )}
 }
@@ -145,8 +145,8 @@ for(i in (table(Beta_df$EPITOPE)%>% names())){
 
 make_fasta_all <- function(df, name){  df %>%
     select(CDR3) %>%
-    pull %>% 
-    purrr::map(., function(x){ 
+    pull %>%
+    purrr::map(., function(x){
       endlen <- nchar(x)-1 # end length removes the final F
       base::substr(x, start=2, stop=endlen)}  # remove the starting C
     ) %>% as.character %>%
@@ -154,8 +154,8 @@ make_fasta_all <- function(df, name){  df %>%
     as.list() %>% {
       write.fasta( # write fasta to output
       sequences = (.),
-      as.string = FALSE, 
-      names = 1:length(.),  
+      as.string = FALSE,
+      names = 1:length(.),
       file.out = paste0("../output/fasta/", name, "_all.fa")
     )}
 }
@@ -188,10 +188,10 @@ Now loop through all the files.
 
 ```{bash Looping MEME Over FASTA files, eval=FALSE, echo=T}
 
-cd /home/03_TCR_seq_data.bin
+cd /home/03_TCR_seq_data/bin
 ### MEME Default mode ###
-for filename in /home/03_TCR_seq_data/output/fasta/*.fa;  
-do 
+for filename in /home/03_TCR_seq_data/output/fasta/*.fa;
+do
 f="$(basename "$filename" .fa)"
 ./meme "$filename" -oc /home/03_TCR_seq_data/output/meme_default/"$f" -protein -minw 3 -maxw 8 -nmotifs 3 -minsites 10 -p 6 -maxiter 5000 -distance 0.001 -evt 0.05 -mod oops
 done
@@ -212,7 +212,7 @@ done
 Run GLAM2 in Parallel
 \
 ```{bash Looping GLAM2 Over FASTA files, eval=FALSE, echo=T}
-cd /home/03_TCR_seq_data/meme/bin
+cd /home/03_TCR_seq_data/bin
 ### Try GLAM2 ###
 parallel -j 6 './glam2 p -a 6 -b 15 -z 10 -r 4 -n 150000 {} -O /home/03_TCR_seq_data/output/glam2_default/{/.} ' ::: /home/03_TCR_seq_data/output/fasta/*.fa
 
@@ -224,7 +224,7 @@ Place these outputs into figures.
 ```{R Using Grid to Make Figures, eval=TRUE, echo=TRUE, error=FALSE, message=FALSE, fig.height=28, fig.width=20}
 
 # SETUP LIST OF Names hat pmap will map over
-f1 <- dir("../output/meme_default/", recursive = F) 
+f1 <- dir("../output/meme_default/", recursive = F)
 f1 <- f1[-grep("_all",f1)]
 
 f1 <- f1[ order(match(f1, c("SGP_ALPHA", "GLI_ALPHA", "QAR_ALPHA", "DPF_ALPHA", "GMF_ALPHA", "PKY_ALPHA",
@@ -249,7 +249,7 @@ ggsave(filename = "../output/meme_df.png", plot = meme_def, width = 21, height =
 meme_def
 
 # Repeat for GLAM2
-r1 <- purrr::map(f1, 
+r1 <- purrr::map(f1,
                  function(x){
                    readPNG(source=paste0("../output/glam2_default/", x, "/logo1.png")
                    )
@@ -274,9 +274,9 @@ Guobing Chen, Xinbo Yang,Annette Ko, ..., Alvin Shi, Roy A. Mariuzza,Nan-ping We
 # fxn to pull out sequences ready to be processed by muscle
 get_muscle <- function(df, epi){df %>%
     filter(EPITOPE == epi) %>%
-    select(CDR3) %>% 
+    select(CDR3) %>%
     pull() %>%
-    purrr::map(., function(x){ 
+    purrr::map(., function(x){
       endlen <- nchar(x)-1 # end length removes the final F
       base::substr(x, start=2, stop=endlen)}  # remove the starting C
     ) %>% as.character %>%
@@ -290,9 +290,9 @@ get_muscle(Alpha_df, "GLI_ALPHA")
 # fxn to get the corresponding sequences in normal form subsetting then visualise using GLAM2
 get_sequences <- function(df, epi){df %>%
     filter(EPITOPE == epi) %>%
-    select(CDR3) %>% 
+    select(CDR3) %>%
     pull() %>%
-    purrr::map(., function(x){ 
+    purrr::map(., function(x){
       endlen <- nchar(x)-1 # end length removes the final F
       base::substr(x, start=2, stop=endlen)}  # remove the starting C
     ) %>% as.character %>%
@@ -303,46 +303,46 @@ get_sequences <- function(df, epi){df %>%
 get_sequences(Alpha_df, "GLI_ALPHA")
 
 # make a tibble that you can pmap the functions over
-tib_for_map <- tibble("correct_df"= c(rep("Alpha_df", 6), rep("Beta_df", 6)), 
-                      "epi_name"= as.character(f1) ) 
+tib_for_map <- tibble("correct_df"= c(rep("Alpha_df", 6), rep("Beta_df", 6)),
+                      "epi_name"= as.character(f1) )
 
 purrr::pmap(tib_for_map, function(correct_df, epi_name){
-  
+
   hello <- get_muscle(get(correct_df), epi_name) # seqs for muscle
-  
+
   out <- get_sequences(get(correct_df), epi_name) # corresponding seqs for subset and analysis by glam2
-  
+
   muscle::muscle(hello, tree1="tree.out", cluster="neighborjoining", maxiters="100") # Run Muscle and extract the tree
-  
+
   # tree2 corresponds to iteration 2
-  
-  x <- read.tree(file = "tree.out") %>% ladderize() 
-  
+
+  x <- read.tree(file = "tree.out") %>% ladderize()
+
   #colour each tip label by cutree
   dm <- cophenetic.phylo(x)  # this allows it to be read by hclust
-  
+
   # Is it correct to use cophenetic.phylo?
-  
+
   single <- hclust(as.dist(dm), method="complete")
   cutSingle <- cutree(single, k=4) # cut the tree
-  
+
   colors_phy <-  recode(cutSingle, `1`="red",`2`="blue", `3`="green", `4`="yellow") %>% as.vector() # color each cluster
   names(colors_phy) <- cutSingle %>% names()
-  
+
   #take the four major sub groups and plot seq logos - look for Motifs using MEME
     for (nX in 1:4){
     cutSingle[cutSingle==nX]%>%names() %>% #get the member of cut tree
-      as.integer() %>% 
+      as.integer() %>%
       {out[.]} %>%  # subset out the sequences
       as.list() %>% {
-        seqinr::write.fasta(sequences = ., 
-                            names = 1:length(.), 
+        seqinr::write.fasta(sequences = .,
+                            names = 1:length(.),
                             file.out = paste0("../output/phylo/", epi_name, as.character(nX), ".fa")) }
   }
-  
+
   ###
-  
-  png(filename = paste0("../output/phylo/", epi_name, "_unr.png"), 
+
+  png(filename = paste0("../output/phylo/", epi_name, "_unr.png"),
       width = 15, height = 15, units = "cm", res = 300)
   plot.phylo(x,
              use.edge.length = T,
@@ -358,9 +358,9 @@ purrr::pmap(tib_for_map, function(correct_df, epi_name){
              node.depth = 1,
              show.tip.label = T)
   dev.off()
-  
-  
-  png(filename = paste0("../output/phylo/", epi_name, "_phylo.png"), 
+
+
+  png(filename = paste0("../output/phylo/", epi_name, "_phylo.png"),
       width = 20, height = 10, units = "cm", res = 300)
   plot.phylo(x,
              use.edge.length = T,
@@ -380,7 +380,7 @@ purrr::pmap(tib_for_map, function(correct_df, epi_name){
   )
   axisPhylo(side = 1, backward = T, lwd =1.5, tick = T, col = "black", outer = F)
   axisPhylo(side = 2, backward = T, lwd =1.5, tick = T, col = "black", outer = F)
-  
+
   dev.off()
 } # end pmap function here
 ) # end pmap
@@ -400,10 +400,10 @@ r1 <- purrr::map(f1, #create list using map
                  })
 g1 <- lapply(r1, grid::rasterGrob) # render the raster object
 grid.newpage()
-meme_def <- marrangeGrob(grobs=g1, 
-                         ncol =2, nrow = 6, 
+meme_def <- marrangeGrob(grobs=g1,
+                         ncol =2, nrow = 6,
                          top = NULL)
-ggsave(filename = "../output/phylo_unr.png", 
+ggsave(filename = "../output/phylo_unr.png",
        plot = meme_def, width = 21, height = 29, dpi = 500, units = "cm")
 
 meme_def
@@ -416,11 +416,11 @@ r1 <- purrr::map(f1, #create list using map
                  })
 g1 <- lapply(r1, grid::rasterGrob) # render the raster object
 grid.newpage()
-glam_def <- marrangeGrob(grobs=g1, 
-                         ncol =2, nrow = 6, 
+glam_def <- marrangeGrob(grobs=g1,
+                         ncol =2, nrow = 6,
                          top = NULL,
                          vp = viewport(width = 1, height = 0.95))
-ggsave(filename = "../output/phylo.png", 
+ggsave(filename = "../output/phylo.png",
        plot = glam_def, width = 21, height = 29, dpi = 500, units = "cm")
 
 glam_def
@@ -432,7 +432,6 @@ glam_def
 \
 ```{bash parallel, eval=FALSE, echo=FALSE, echo=T}
 
-cd /home/03_TCR_seq_data/meme/bin
+cd /home/03_TCR_seq_data/bin
 parallel -j 6 './glam2 p -a 6 -b 15 -z 10 -r 4 -n 150000 {} -O {.} ' ::: /home/03_TCR_seq_data/output/phylo/*.fa
 ```
-
