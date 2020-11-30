@@ -2,6 +2,10 @@
 
 #### Greenshields-Watson et al. 2020
 
+https://doi.org/10.1016/j.celrep.2020.107885
+
+https://www.sciencedirect.com/science/article/pii/S2211124720308664
+
 The R Markdown files in this repository were created to analyse data and generate figures used in the publication. To run this code you will need to install the various tools from the command line. Links are included in each section. The raw TCR seq data is available from: vdjdb.net. Various raw data files (conservation analysis, in vivo data and ) are included in the input folder
 
 
