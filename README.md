@@ -34,4 +34,8 @@ The R Markdown files in this repository were created to analyse data and generat
 
 ## Crystallographic PyMOL scripts (Python/PyMOL-syntax)
 - Relevant PDB accession numbers:
-- PML scripts to recreate the crystallogrpahic figures
+F11-DR1-PKY Complex	PDB: 6R0E
+DR1-SGP	PDB: 6QZC
+DR1-QAR	PDB: 6QZD
+DR1-GMF	PDB: 6QZA
+- PML scripts to recreate the crystallographic figures
