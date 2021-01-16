@@ -6,7 +6,7 @@ https://doi.org/10.1016/j.celrep.2020.107885
 
 https://www.sciencedirect.com/science/article/pii/S2211124720308664
 
-The R Markdown files in this repository were created to analyse data and generate figures used in the publication. To run this code you will need to install the various tools from the command line. Links are included in each section. The raw TCR seq data is available from: vdjdb.net. Various raw data files (conservation analysis, in vivo data and ) are included in the input folder
+The R Markdown files in this repository were created to analyse data and generate figures used in the publication. To run this code you will need to install the various tools from the command line. Links are included in each section. The raw TCR seq data is available from: vdjdb.net. Various raw data files (conservation analysis and in vivo data xlsx files ) are included in the input folder.
 
 
 
@@ -19,14 +19,14 @@ The R Markdown files in this repository were created to analyse data and generat
 - Alakazam analysis of middle six CDR3 amino acids.
 
 ## GLAM2, MEME, MUSCLE and Phylogenetics (bash and R)
-- Sequence motif analysis
+- Sequence motif analysis.
 
 ## OLGA analysis (bash and R)
 - pGen calculations for all CDR3 sequences.
 
 ## Conservation Analysis Heatmaps and Graphs (R)
 - Raw data.
-- Bar graphs detailing the number of...
+- Bar graphs and heatmaps detailing the number of mutations in strains of influenza (human, avian, swine).
 
 ## In vivo Challenge analysis (R)
 - Raw data
