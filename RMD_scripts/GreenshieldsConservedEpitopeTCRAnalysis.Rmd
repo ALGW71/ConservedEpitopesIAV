@@ -413,7 +413,8 @@ TRAV_entropy <- map(Alpha_TRAV, table ) %>% map(function(x) entropy(.data = x, .
   mutate(Epitope = factor(Epitope, 
                           levels = c('SGP_ALPHA', 'GLI_ALPHA', 'QAR_ALPHA', 
                                      'DPF_ALPHA', 'GMF_ALPHA', 'PKY_ALPHA'),
-                          labels = c("SGP", "GLI", "QAR", "DPF", "GMF", "PKY"))) %>% rename(ENTROPY = V1) %>% 
+                          labels = c("SGP", "GLI", "QAR", "DPF", "GMF", "PKY"))) %>% 
+  rename(ENTROPY = V1) %>% 
   add_column(GENE = "TRAV")
 
 TRAJ_entropy <- map(Alpha_TRAJ, table ) %>% map(function(x) entropy(.data = x, .do.norm = T)) %>%
@@ -423,7 +424,8 @@ TRAJ_entropy <- map(Alpha_TRAJ, table ) %>% map(function(x) entropy(.data = x, .
                           levels = c('SGP_ALPHA', 'GLI_ALPHA', 'QAR_ALPHA', 
                                      'DPF_ALPHA', 'GMF_ALPHA', 'PKY_ALPHA'),
                           labels = c("SGP", "GLI", "QAR",
-                                     "DPF", "GMF", "PKY"))) %>% rename(ENTROPY = V1) %>% 
+                                     "DPF", "GMF", "PKY"))) %>% 
+  rename(ENTROPY = V1) %>% 
   add_column(GENE = "TRAJ")
 
 TRBV_entropy <- map(Beta_TRBV, table ) %>% map(function(x) entropy(.data = x, .do.norm = T)) %>%
@@ -433,7 +435,8 @@ TRBV_entropy <- map(Beta_TRBV, table ) %>% map(function(x) entropy(.data = x, .d
                           levels = c('SGP_BETA', 'GLI_BETA', 'QAR_BETA', 
                                      'DPF_BETA', 'GMF_BETA', 'PKY_BETA'),
                           labels = c("SGP", "GLI", "QAR",
-                                     "DPF", "GMF", "PKY"))) %>% rename(ENTROPY = V1) %>%
+                                     "DPF", "GMF", "PKY"))) %>% 
+  rename(ENTROPY = V1) %>%
   add_column(GENE = "TRBV")
 
 TRBJ_entropy <- map(Beta_TRBJ, table ) %>% map(function(x) entropy(.data = x, .do.norm = T)) %>%
@@ -443,7 +446,8 @@ TRBJ_entropy <- map(Beta_TRBJ, table ) %>% map(function(x) entropy(.data = x, .d
                           levels = c('SGP_BETA', 'GLI_BETA', 'QAR_BETA', 
                                      'DPF_BETA', 'GMF_BETA', 'PKY_BETA'),
                           labels = c("SGP", "GLI", "QAR",
-                                     "DPF", "GMF", "PKY"))) %>% rename(ENTROPY = V1) %>% 
+                                     "DPF", "GMF", "PKY"))) %>% 
+  rename(ENTROPY = V1) %>% 
   add_column(GENE = "TRBJ")
 
 
@@ -569,8 +573,7 @@ KL_Alpha <- merge(All_GU %>% filter(AB=="ALPHA") %>%
                     select(v.alpha, species, count.control.a, total.control.a) %>%
                     mutate(count.control.a = ifelse(is.na(count.control.a),
                                                     0, count.control.a),
-                           total.control.a = mean(total.control.a, na.rm = T)
-                    ),
+                           total.control.a = mean(total.control.a, na.rm = T) ),
                   #this whole section is working on the background df, not the data
                   all.x = T) %>%
   mutate(count.control.a = ifelse(is.na(count.control.a), 0, count.control.a),
